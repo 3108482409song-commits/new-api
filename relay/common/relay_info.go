@@ -944,6 +944,8 @@ type TaskSubmitReq struct {
 	Image          string         `json:"image,omitempty"`
 	Images         []string       `json:"images,omitempty"`
 	Size           string         `json:"size,omitempty"`
+	Resolution     string         `json:"resolution,omitempty"`
+	AspectRatio    string         `json:"aspect_ratio,omitempty"`
 	Duration       int            `json:"duration,omitempty"`
 	Seconds        string         `json:"seconds,omitempty"`
 	InputReference string         `json:"input_reference,omitempty"`

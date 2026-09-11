@@ -16,105 +16,66 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { PlaygroundChat } from './components/chat/playground-chat'
-import { PlaygroundInput } from './components/input/playground-input'
-import {
-  useChatHandler,
-  usePlaygroundConversation,
-  usePlaygroundOptions,
-  usePlaygroundState,
-} from './hooks'
+import { Image as ImageIcon, ListChecks, MessageSquare, Video as VideoIcon } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import { useState } from 'react'
+
+import { Separator } from '@/components/ui/separator'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+
+import { ChatPanel } from './components/workbench/chat-panel'
+import { ImagePanel } from './components/workbench/image-panel'
+import { TaskPanel } from './components/workbench/task-panel'
+import { VideoPanel } from './components/workbench/video-panel'
 
 export function Playground() {
-  const {
-    config,
-    parameterEnabled,
-    messages,
-    isLoadingMessages,
-    models,
-    groups,
-    updateMessages,
-    setModels,
-    setGroups,
-    updateConfig,
-    updateParameterEnabled,
-    clearMessages,
-  } = usePlaygroundState()
-
-  const { sendChat, stopGeneration, isGenerating } = useChatHandler({
-    config,
-    parameterEnabled,
-    onMessageUpdate: updateMessages,
-  })
-
-  const {
-    editingMessageKey,
-    handleSendMessage,
-    handleRegenerateMessage,
-    handleEditMessage,
-    handleEditOpenChange,
-    applyEdit,
-    handleDeleteMessage,
-  } = usePlaygroundConversation({
-    messages,
-    updateMessages,
-    sendChat,
-  })
-
-  const handleClearMessages = () => {
-    handleEditOpenChange(false)
-    clearMessages()
-  }
-
-  const { isLoadingModels } = usePlaygroundOptions({
-    currentGroup: config.group,
-    currentModel: config.model,
-    setGroups,
-    setModels,
-    updateConfig,
-  })
+  const { t } = useTranslation()
+  const [activeTab, setActiveTab] = useState('chat')
 
   return (
-    <div className='relative flex size-full min-h-0 flex-col overflow-hidden'>
-      {/* Full-width scroll container: scrolling works even over side whitespace */}
-      <div className='flex min-h-0 flex-1 flex-col overflow-hidden'>
-        <PlaygroundChat
-          messages={messages}
-          isLoadingMessages={isLoadingMessages}
-          onRegenerateMessage={handleRegenerateMessage}
-          onEditMessage={handleEditMessage}
-          onDeleteMessage={handleDeleteMessage}
-          onSelectPrompt={handleSendMessage}
-          isGenerating={isGenerating}
-          editingKey={editingMessageKey}
-          onCancelEdit={handleEditOpenChange}
-          onSaveEdit={(newContent) => applyEdit(newContent, false)}
-          onSaveEditAndSubmit={(newContent) => applyEdit(newContent, true)}
-        />
-      </div>
-
-      {/* Input area: center content and constrain to the same container width */}
-      <div className='mx-auto w-full max-w-4xl'>
-        <PlaygroundInput
-          config={config}
-          disabled={isGenerating}
-          groups={groups}
-          groupValue={config.group}
-          isGenerating={isGenerating}
-          isModelLoading={isLoadingModels}
-          modelValue={config.model}
-          models={models}
-          onGroupChange={(value) => updateConfig('group', value)}
-          onConfigChange={updateConfig}
-          onClearMessages={handleClearMessages}
-          onModelChange={(value) => updateConfig('model', value)}
-          onParameterEnabledChange={updateParameterEnabled}
-          onStop={stopGeneration}
-          onSubmit={handleSendMessage}
-          parameterEnabled={parameterEnabled}
-          hasMessages={messages.length > 0}
-        />
-      </div>
+    <div className='flex size-full min-h-0 flex-col'>
+      <Tabs className='min-h-0 flex-1' value={activeTab} onValueChange={setActiveTab}>
+        <div className='flex flex-col'>
+          {/* flex + mx-auto on the list centres it while it fits, and collapses
+              to a scrollable left-aligned row once it is wider than the bar. */}
+          <div className='flex overflow-x-auto px-4 pt-3'>
+            <TabsList className='mx-auto min-w-max'>
+              <TabsTrigger className='gap-1.5 px-3 sm:min-w-36 sm:px-4' value='chat'>
+                <MessageSquare className='size-4' />
+                {t('Chat')}
+              </TabsTrigger>
+              <TabsTrigger className='gap-1.5 px-3 sm:min-w-36 sm:px-4' value='image'>
+                <ImageIcon className='size-4' />
+                {t('Image')}
+              </TabsTrigger>
+              <TabsTrigger className='gap-1.5 px-3 sm:min-w-36 sm:px-4' value='video'>
+                <VideoIcon className='size-4' />
+                {t('Video')}
+              </TabsTrigger>
+              <TabsTrigger className='gap-1.5 px-3 sm:min-w-36 sm:px-4' value='tasks'>
+                <ListChecks className='size-4' />
+                {t('Task list')}
+              </TabsTrigger>
+            </TabsList>
+          </div>
+          <Separator className='mt-3' />
+        </div>
+        {/* keepMounted keeps each panel's in-progress work (prompt, uploaded
+            frames, results) alive while the user checks another tab. Panels
+            gate their queries on `active`, so inactive tabs stay idle. */}
+        <TabsContent className='flex min-h-0 flex-1' keepMounted value='chat'>
+          <ChatPanel />
+        </TabsContent>
+        <TabsContent className='flex min-h-0 flex-1' keepMounted value='image'>
+          <ImagePanel active={activeTab === 'image'} />
+        </TabsContent>
+        <TabsContent className='flex min-h-0 flex-1' keepMounted value='video'>
+          <VideoPanel active={activeTab === 'video'} />
+        </TabsContent>
+        <TabsContent className='flex min-h-0 flex-1' keepMounted value='tasks'>
+          <TaskPanel active={activeTab === 'tasks'} />
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

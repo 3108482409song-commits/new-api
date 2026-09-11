@@ -66,6 +66,34 @@ func SetRelayRouter(router *gin.Engine) {
 	{
 		playgroundRouter.POST("/chat/completions", controller.Playground)
 	}
+
+	// Workbench image generation (session-auth, group via X-Workbench-Group header)
+	workbenchImageRouter := router.Group("/pg/images")
+	workbenchImageRouter.Use(middleware.RouteTag("relay"))
+	workbenchImageRouter.Use(middleware.SystemPerformanceCheck())
+	workbenchImageRouter.Use(middleware.UserAuth(), middleware.WorkbenchGroup(), middleware.Distribute())
+	{
+		workbenchImageRouter.POST("/generations", controller.WorkbenchImage)
+		workbenchImageRouter.POST("/edits", controller.WorkbenchImage)
+	}
+
+	// Workbench video generation: same plugin-protocol chain as
+	// /v1/video/generations but with session auth instead of TokenAuth.
+	workbenchVideoRouter := router.Group("/pg/video")
+	workbenchVideoRouter.Use(middleware.RouteTag("relay"))
+	workbenchVideoRouter.Use(middleware.SystemPerformanceCheck())
+	workbenchVideoRouter.Use(middleware.UserAuth(), middleware.WorkbenchGroup())
+	{
+		workbenchVideoRouter.POST("/generations",
+			middleware.PinTaskPluginEndpoint(),
+			middleware.TaskPluginEndpointOnly(middleware.ModelRequestRateLimit()),
+			middleware.PrepareTaskPluginEndpoint(),
+			middleware.Distribute(),
+			func(c *gin.Context) {
+				controller.RelayTaskPluginEndpoint(c, controller.RelayTask)
+			},
+		)
+	}
 	relayV1Router := router.Group("/v1")
 	relayV1Router.Use(middleware.RouteTag("relay"))
 	relayV1Router.Use(middleware.SystemPerformanceCheck())

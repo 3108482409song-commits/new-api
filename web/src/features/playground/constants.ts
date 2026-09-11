@@ -39,6 +39,40 @@ export const API_ENDPOINTS = {
   USER_GROUPS: '/api/user/self/groups',
 } as const
 
+// Workbench endpoints
+export const WORKBENCH_ENDPOINTS = {
+  MODELS: '/api/workbench/models',
+  ESTIMATE: '/api/workbench/estimate',
+  IMAGE_GENERATIONS: '/pg/images/generations',
+  IMAGE_EDITS: '/pg/images/edits',
+  VIDEO_GENERATIONS: '/pg/video/generations',
+  TASKS: '/api/task/self',
+} as const
+
+// The selected billing group travels in this header so it never pollutes the
+// upstream request body (JSON or multipart).
+export const WORKBENCH_GROUP_HEADER = 'X-Workbench-Group'
+
+// Tasks created by the image / video workbench. The whitelist excludes
+// Midjourney / Suno / other non-workbench task actions by construction.
+export const WORKBENCH_ACTION_WHITELIST = [
+  'text2img',
+  'img2img',
+  'text_to_video',
+  'image_to_video',
+  'first_tail_to_video',
+  'reference_to_video',
+] as const
+
+export const WORKBENCH_IMAGE_ACTIONS = ['text2img', 'img2img'] as const
+
+export const WORKBENCH_RUNNING_STATUSES = [
+  'NOT_START',
+  'SUBMITTED',
+  'QUEUED',
+  'IN_PROGRESS',
+] as const
+
 // Default group — uses 'default' as the safe fallback; auto-group is
 // only selected when the backend confirms it is available for the user.
 export const DEFAULT_GROUP = 'default' as const

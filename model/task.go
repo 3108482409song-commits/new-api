@@ -220,6 +220,7 @@ type SyncTaskQueryParams struct {
 	TaskID         string
 	UserID         string
 	Action         string
+	Actions        []string
 	Status         string
 	StartTimestamp int64
 	EndTimestamp   int64
@@ -275,7 +276,9 @@ func TaskGetAllUserTask(userId int, startIdx int, num int, queryParams SyncTaskQ
 	if queryParams.TaskID != "" {
 		query = query.Where("task_id = ?", queryParams.TaskID)
 	}
-	if queryParams.Action != "" {
+	if len(queryParams.Actions) > 0 {
+		query = query.Where("action IN ?", queryParams.Actions)
+	} else if queryParams.Action != "" {
 		query = query.Where("action = ?", queryParams.Action)
 	}
 	if queryParams.Status != "" {
@@ -324,7 +327,9 @@ func TaskGetAllTasks(startIdx int, num int, queryParams SyncTaskQueryParams) []*
 	if queryParams.TaskID != "" {
 		query = query.Where("task_id = ?", queryParams.TaskID)
 	}
-	if queryParams.Action != "" {
+	if len(queryParams.Actions) > 0 {
+		query = query.Where("action IN ?", queryParams.Actions)
+	} else if queryParams.Action != "" {
 		query = query.Where("action = ?", queryParams.Action)
 	}
 	if queryParams.Status != "" {
@@ -576,7 +581,9 @@ func TaskCountAllTasks(queryParams SyncTaskQueryParams) int64 {
 	if queryParams.TaskID != "" {
 		query = query.Where("task_id = ?", queryParams.TaskID)
 	}
-	if queryParams.Action != "" {
+	if len(queryParams.Actions) > 0 {
+		query = query.Where("action IN ?", queryParams.Actions)
+	} else if queryParams.Action != "" {
 		query = query.Where("action = ?", queryParams.Action)
 	}
 	if queryParams.Status != "" {
@@ -599,7 +606,9 @@ func TaskCountAllUserTask(userId int, queryParams SyncTaskQueryParams) int64 {
 	if queryParams.TaskID != "" {
 		query = query.Where("task_id = ?", queryParams.TaskID)
 	}
-	if queryParams.Action != "" {
+	if len(queryParams.Actions) > 0 {
+		query = query.Where("action IN ?", queryParams.Actions)
+	} else if queryParams.Action != "" {
 		query = query.Where("action = ?", queryParams.Action)
 	}
 	if queryParams.Status != "" {

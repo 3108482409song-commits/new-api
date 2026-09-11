@@ -149,3 +149,90 @@ export interface GroupOption {
   ratio: number
   desc?: string
 }
+
+// ── Workbench (image / video / task list) ────────────────────────────────
+
+export interface WorkbenchModel {
+  name: string
+  image: boolean
+  video: boolean
+  platform?: string
+}
+
+export interface WorkbenchEstimateResult {
+  quota: number
+  usd: number
+  free_model: boolean
+  estimate: boolean
+}
+
+export type WorkbenchEstimatePayload =
+  | {
+      type: 'image'
+      group: string
+      model: string
+      n: number
+      size: string
+      quality?: string
+    }
+  | {
+      type: 'video'
+      group: string
+      model: string
+      mode: VideoMode
+      duration: number
+      resolution: string
+      aspect: string
+      /** Number of reference images; the API field is snake_case. */
+      ref_images: number
+    }
+
+export type VideoMode = 'text_to_video' | 'first_tail_to_video' | 'reference_to_video'
+
+export type TaskStatus =
+  | 'NOT_START'
+  | 'SUBMITTED'
+  | 'QUEUED'
+  | 'IN_PROGRESS'
+  | 'FAILURE'
+  | 'SUCCESS'
+  | 'UNKNOWN'
+
+export interface WorkbenchImageResult {
+  url?: string
+  b64_json?: string
+  revised_prompt?: string
+}
+
+export interface WorkbenchTask {
+  id: number
+  task_id: string
+  platform: string
+  action: string
+  status: TaskStatus
+  progress: string
+  fail_reason: string
+  result_url?: string
+  submit_time: number
+  start_time: number
+  finish_time: number
+  quota: number
+  group: string
+  properties?: {
+    input?: string
+    origin_model_name?: string
+    upstream_model_name?: string
+  }
+  data?: {
+    images?: WorkbenchImageResult[]
+    size?: string
+    n?: number
+  } | null
+}
+
+export interface WorkbenchTaskPage {
+  items: WorkbenchTask[]
+  total: number
+  page?: number
+  page_size?: number
+}

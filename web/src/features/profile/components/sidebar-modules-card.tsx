@@ -60,12 +60,12 @@ export function SidebarModulesCard() {
     {
       key: 'chat',
       title: t('Chat Area'),
-      description: t('Playground and chat functions'),
+      description: t('Workbench and chat functions'),
       modules: [
         {
           key: 'playground',
-          title: t('Playground'),
-          description: t('AI model testing environment'),
+          title: t('Workbench'),
+          description: t('AI generation workbench and testing environment'),
         },
         {
           key: 'chat',

@@ -164,6 +164,14 @@ func SetApiRouter(router *gin.Engine) {
 			}
 		}
 
+		// Workbench (image/video generation workspace in the console)
+		workbenchRoute := apiRouter.Group("/workbench")
+		workbenchRoute.Use(middleware.DisableCache(), middleware.UserAuth())
+		{
+			workbenchRoute.GET("/models", controller.GetWorkbenchModels)
+			workbenchRoute.POST("/estimate", controller.WorkbenchEstimate)
+		}
+
 		// Subscription billing (plans, purchase, admin management)
 		subscriptionRoute := apiRouter.Group("/subscription")
 		subscriptionRoute.Use(middleware.UserAuth())

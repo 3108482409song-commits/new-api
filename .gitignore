@@ -11,6 +11,8 @@ build
 *.db-shm
 *.db-wal
 logs
+*.out.log
+*.err.log
 web/dist
 web/node_modules
 .env

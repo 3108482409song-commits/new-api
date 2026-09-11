@@ -5,6 +5,10 @@ type TaskPlatform string
 const (
 	TaskPlatformSuno       TaskPlatform = "suno"
 	TaskPlatformMidjourney              = "mj"
+	// TaskPlatformImage marks synchronous workbench image generations that are
+	// persisted as immediately-terminal task records for the task list only.
+	// These records never participate in polling or asynchronous settlement.
+	TaskPlatformImage = "image"
 )
 
 const (
@@ -13,6 +17,10 @@ const (
 	TaskActionFirstTailToVideo = "first_tail_to_video"
 	TaskActionReferenceToVideo = "reference_to_video"
 	TaskActionRemix            = "remix"
+
+	// Workbench image actions (new vocabulary, no legacy aliases).
+	TaskActionText2Img = "text2img"
+	TaskActionImg2Img  = "img2img"
 )
 
 var legacyTaskActionAliases = map[string]string{

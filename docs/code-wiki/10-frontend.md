@@ -18,8 +18,8 @@
 
 ## 2. 构建与嵌入
 
-- [rsbuild.config.ts](../../../web/rsbuild.config.ts)：入口 `src/main.tsx`，别名 `@ → src`，vendor 拆分（React / TanStack / UI primitives），产物到 `dist`。
-- 后端通过 `//go:embed web/dist` 把**前端构建产物直接编译进 Go 二进制**（见 [main.go](../../../main.go#L43-L47)），单二进制即可提供控制台页面。
+- [rsbuild.config.ts](../../web/rsbuild.config.ts)：入口 `src/main.tsx`，别名 `@ → src`，vendor 拆分（React / TanStack / UI primitives），产物到 `dist`。
+- 后端通过 `//go:embed web/dist` 把**前端构建产物直接编译进 Go 二进制**（见 [main.go](../../main.go#L43-L47)），单二进制即可提供控制台页面。
 
 ## 3. 目录结构（web/src/）
 
@@ -28,7 +28,7 @@
 | `routes/` | TanStack Router 文件路由（`createFileRoute`）：`__root.tsx`、`route.tsx`；认证页（sign-in/sign-up/oauth/otp/forgot-password/reset）、错误页（401/403/404/500/503）、各功能页（chat `$chatId`/`$section` 等） |
 | `features/<feature>/` | 功能模块（含 `components/`、`lib/`、`hooks/`、`api.ts`、`types.ts`、`constants.ts`） |
 | `components/` | 通用组件（`ui/` 基础控件、`dialog`、`confirm-dialog`、`copy-button`、`data-table`、`empty-state` 等，198+ 个 tsx） |
-| `stores/` | Zustand store：[auth-store.ts](../../../web/src/stores/auth-store.ts)、notification-store.ts、pricing-preferences-store.ts、system-config-store.ts |
+| `stores/` | Zustand store：[auth-store.ts](../../web/src/stores/auth-store.ts)、notification-store.ts、pricing-preferences-store.ts、system-config-store.ts |
 | `hooks/` | 自定义 hooks（如 use-copy-to-clipboard） |
 | `lib/` | 通用工具（axios `api` 实例、错误处理 `handleServerError`、request 封装） |
 | `i18n/` | locale 文件与 `static-keys.ts`、同步脚本 |
@@ -36,6 +36,8 @@
 | `config/`、`context/`、`assets/` | 配置、React Context、静态资源 |
 
 功能模块清单（features/）：about、auth、channels、chat、dashboard、errors、home、keys、legal、model-pricing、models、performance-metrics、playground、pricing、profile、rankings、redemption-codes、security、setup、subscriptions、system-info、system-settings、task-plugins、usage-logs、users、wallet。
+
+其中 `features/playground/` 内含 **Workbench** 子模块（`components/workbench/`：`image-panel.tsx`、`video-panel.tsx`、`task-panel.tsx`、`result-viewer.tsx`，工具函数在 `lib/workbench-utils.ts`、`lib/workbench-options.ts`），对接后端 `/pg/images/*`、`/pg/video/*` 工作台接口。
 
 ## 4. 关键约定（摘自 web/AGENTS.md）
 

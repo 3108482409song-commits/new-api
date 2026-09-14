@@ -1,0 +1,577 @@
+{
+  "cases": [
+    {
+      "name": "submit rewrites the client alias to the upstream model",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://upstream.invalid",
+          "apiKey": "sk-test",
+          "model": "video-ds-2.5",
+          "upstreamModel": "kling-video-v3",
+          "requestBody": {
+            "model": "video-ds-2.5",
+            "prompt": "a calm ocean at sunrise",
+            "seconds": "5",
+            "aspect_ratio": "16:9",
+            "resolution": "720p"
+          }
+        }
+      ],
+      "expected": {
+        "url": "https://upstream.invalid/v1/videos",
+        "method": "POST",
+        "headers": {
+          "Authorization": "Bearer sk-test",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "model": "kling-video-v3",
+          "prompt": "a calm ocean at sunrise",
+          "seconds": "5",
+          "aspect_ratio": "16:9",
+          "resolution": "720p"
+        }
+      }
+    },
+    {
+      "name": "submit rejects a missing prompt",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://upstream.invalid",
+          "apiKey": "sk-test",
+          "requestBody": {
+            "model": "kling-video-v3"
+          }
+        }
+      ],
+      "expectedError": "field prompt is required"
+    },
+    {
+      "name": "parse submit response reads id and task_id",
+      "hook": "parseSubmitResponse",
+      "args": [
+        {},
+        {
+          "body": {
+            "id": "task_SZvp7GBMqOdmcBwTRLufO3pORWqQsdYV",
+            "task_id": "task_SZvp7GBMqOdmcBwTRLufO3pORWqQsdYV",
+            "object": "video.generation",
+            "model": "kling-video-v3",
+            "status": "queued",
+            "progress": 0,
+            "created_at": 1789394569,
+            "result": {}
+          }
+        }
+      ],
+      "expected": {
+        "taskId": "task_SZvp7GBMqOdmcBwTRLufO3pORWqQsdYV",
+        "taskData": {
+          "id": "task_SZvp7GBMqOdmcBwTRLufO3pORWqQsdYV",
+          "task_id": "task_SZvp7GBMqOdmcBwTRLufO3pORWqQsdYV",
+          "object": "video.generation",
+          "model": "kling-video-v3",
+          "status": "queued",
+          "progress": 0,
+          "created_at": 1789394569,
+          "result": {}
+        }
+      }
+    },
+    {
+      "name": "parse submit response falls back to task_id only",
+      "hook": "parseSubmitResponse",
+      "args": [
+        {},
+        {
+          "body": {
+            "task_id": "task_b",
+            "status": "queued"
+          }
+        }
+      ],
+      "expected": {
+        "taskId": "task_b",
+        "taskData": {
+          "task_id": "task_b",
+          "status": "queued"
+        }
+      }
+    },
+    {
+      "name": "parse submit response rejects a body without an id",
+      "hook": "parseSubmitResponse",
+      "args": [
+        {},
+        {
+          "body": {
+            "status": "queued"
+          }
+        }
+      ],
+      "expectedError": "task_id is empty"
+    },
+    {
+      "name": "query uses the upstream task id",
+      "hook": "buildQueryRequest",
+      "args": [
+        {
+          "baseUrl": "https://upstream.invalid",
+          "apiKey": "sk-test",
+          "taskId": "task_SZvp7GBMqOdmcBwTRLufO3pORWqQsdYV"
+        }
+      ],
+      "expected": {
+        "url": "https://upstream.invalid/v1/videos/task_SZvp7GBMqOdmcBwTRLufO3pORWqQsdYV",
+        "method": "GET",
+        "headers": {
+          "Authorization": "Bearer sk-test"
+        }
+      }
+    },
+    {
+      "name": "queued maps to QUEUED",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "id": "task_a",
+          "status": "queued",
+          "progress": 0,
+          "created_at": 1789394569
+        }
+      ],
+      "expected": {
+        "status": "QUEUED"
+      }
+    },
+    {
+      "name": "unknown maps to QUEUED because the provider has not picked the task up yet",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "id": "task_a",
+          "status": "unknown",
+          "progress": 0
+        }
+      ],
+      "expected": {
+        "status": "QUEUED"
+      }
+    },
+    {
+      "name": "processing reports progress",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "status": "processing",
+          "progress": 40
+        }
+      ],
+      "expected": {
+        "status": "IN_PROGRESS",
+        "progress": "40%"
+      }
+    },
+    {
+      "name": "completed maps to SUCCESS",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "status": "completed",
+          "progress": 100,
+          "completed_at": 1789394578
+        }
+      ],
+      "expected": {
+        "status": "SUCCESS"
+      }
+    },
+    {
+      "name": "failed surfaces the upstream error message",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "status": "failed",
+          "progress": 100,
+          "completed_at": 1789394627,
+          "error": {
+            "message": "unknown provider for model grok-imagine-video",
+            "code": "video_generation_failed"
+          }
+        }
+      ],
+      "expected": {
+        "status": "FAILURE",
+        "reason": "unknown provider for model grok-imagine-video"
+      }
+    },
+    {
+      "name": "an unrecognized status is reported instead of guessed",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "status": "weird"
+        }
+      ],
+      "expected": {
+        "status": "UNKNOWN",
+        "reason": "unrecognized status: weird"
+      }
+    },
+    {
+      "name": "artifacts appear only once the task succeeded",
+      "hook": "listArtifacts",
+      "args": [
+        {
+          "status": "SUCCESS"
+        }
+      ],
+      "expected": [
+        {
+          "key": "video",
+          "type": "video",
+          "mimeType": "video/mp4"
+        }
+      ]
+    },
+    {
+      "name": "no artifacts while a task is still running",
+      "hook": "listArtifacts",
+      "args": [
+        {
+          "status": "IN_PROGRESS"
+        }
+      ],
+      "expected": []
+    },
+    {
+      "name": "content request proxies the upstream content path",
+      "hook": "buildContentRequest",
+      "args": [
+        {
+          "baseUrl": "https://upstream.invalid",
+          "apiKey": "sk-test",
+          "artifactKey": "video",
+          "upstreamTaskId": "task_SZvp7GBMqOdmcBwTRLufO3pORWqQsdYV",
+          "clientRequest": {
+            "method": "GET"
+          }
+        }
+      ],
+      "expected": {
+        "url": "https://upstream.invalid/v1/videos/task_SZvp7GBMqOdmcBwTRLufO3pORWqQsdYV/content",
+        "method": "GET",
+        "headers": {
+          "Authorization": "Bearer sk-test"
+        }
+      }
+    },
+    {
+      "name": "content request rejects an unknown artifact key",
+      "hook": "buildContentRequest",
+      "args": [
+        {
+          "baseUrl": "https://upstream.invalid",
+          "apiKey": "sk-test",
+          "artifactKey": "audio",
+          "upstreamTaskId": "task_a"
+        }
+      ],
+      "expectedError": "artifact_not_found"
+    },
+    {
+      "name": "usage records seconds and resolution",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "requestBody": {
+            "model": "kling-video-v3",
+            "prompt": "x",
+            "seconds": "5",
+            "resolution": "720p"
+          }
+        }
+      ],
+      "expected": {
+        "seconds": 5,
+        "resolution": "720p"
+      }
+    },
+    {
+      "name": "usage on completion clamps seconds",
+      "hook": "extractUsageOnComplete",
+      "args": [
+        {},
+        {},
+        {
+          "seconds": "99",
+          "resolution": "1080p"
+        }
+      ],
+      "expected": {
+        "seconds": 15,
+        "resolution": "1080p"
+      }
+    },
+    {
+      "name": "decode accepts the documented submit body",
+      "hook": "protocols",
+      "path": [
+        "openai_video",
+        "decodeRequest"
+      ],
+      "args": [
+        {
+          "protocol": "openai_video",
+          "operation": "create",
+          "model": "video-ds-2.5",
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "video-ds-2.5",
+              "prompt": "a calm ocean at sunrise",
+              "seconds": "5",
+              "aspect_ratio": "16:9",
+              "resolution": "720p"
+            }
+          }
+        }
+      ],
+      "expected": {
+        "kind": "submit",
+        "model": "video-ds-2.5",
+        "action": "text_to_video",
+        "requestBody": {
+          "model": "video-ds-2.5",
+          "prompt": "a calm ocean at sunrise",
+          "seconds": "5",
+          "aspect_ratio": "16:9",
+          "resolution": "720p"
+        }
+      }
+    },
+    {
+      "name": "decode marks a request carrying reference images",
+      "hook": "protocols",
+      "path": [
+        "openai_video",
+        "decodeRequest"
+      ],
+      "args": [
+        {
+          "model": "kling-video-v3",
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "kling-video-v3",
+              "prompt": "x",
+              "images": [
+                "https://assets.example.com/ref.jpg"
+              ]
+            }
+          }
+        }
+      ],
+      "expected": {
+        "kind": "submit",
+        "model": "kling-video-v3",
+        "action": "image_to_video",
+        "requestBody": {
+          "model": "kling-video-v3",
+          "prompt": "x",
+          "images": [
+            "https://assets.example.com/ref.jpg"
+          ]
+        }
+      }
+    },
+    {
+      "name": "decode rejects an out of range duration",
+      "hook": "protocols",
+      "path": [
+        "openai_video",
+        "decodeRequest"
+      ],
+      "args": [
+        {
+          "model": "kling-video-v3",
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "kling-video-v3",
+              "prompt": "x",
+              "seconds": "99"
+            }
+          }
+        }
+      ],
+      "expectedError": "seconds must be between 1 and 15"
+    },
+    {
+      "name": "decode rejects an unsupported resolution",
+      "hook": "protocols",
+      "path": [
+        "openai_video",
+        "decodeRequest"
+      ],
+      "args": [
+        {
+          "model": "kling-video-v3",
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "kling-video-v3",
+              "prompt": "x",
+              "resolution": "480p"
+            }
+          }
+        }
+      ],
+      "expectedError": "resolution must be 720p or 1080p"
+    },
+    {
+      "name": "decode rejects a missing prompt",
+      "hook": "protocols",
+      "path": [
+        "openai_video",
+        "decodeRequest"
+      ],
+      "args": [
+        {
+          "model": "kling-video-v3",
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "kling-video-v3"
+            }
+          }
+        }
+      ],
+      "expectedError": "prompt is required"
+    },
+    {
+      "name": "render exposes the failure envelope and nothing else",
+      "hook": "protocols",
+      "path": [
+        "openai_video",
+        "render"
+      ],
+      "args": [
+        {
+          "protocol": "openai_video",
+          "operation": "retrieve"
+        },
+        {
+          "task_id": "task_a",
+          "status": "FAILURE",
+          "fail_reason": "unknown provider for model kling-video-v3"
+        }
+      ],
+      "expected": {
+        "error": {
+          "code": "video_generation_failed",
+          "message": "unknown provider for model kling-video-v3"
+        }
+      }
+    },
+    {
+      "name": "render falls back to a generic failure message",
+      "hook": "protocols",
+      "path": [
+        "openai_video",
+        "render"
+      ],
+      "args": [
+        {
+          "protocol": "openai_video",
+          "operation": "retrieve"
+        },
+        {
+          "task_id": "task_a",
+          "status": "FAILURE"
+        }
+      ],
+      "expected": {
+        "error": {
+          "code": "video_generation_failed",
+          "message": "The video generation task failed."
+        }
+      }
+    },
+    {
+      "name": "render hands out a gateway relative content path on success",
+      "hook": "protocols",
+      "path": [
+        "openai_video",
+        "render"
+      ],
+      "args": [
+        {
+          "protocol": "openai_video",
+          "operation": "retrieve"
+        },
+        {
+          "task_id": "task_a",
+          "status": "SUCCESS"
+        }
+      ],
+      "expected": {
+        "url": "/v1/videos/task_a/content"
+      }
+    },
+    {
+      "name": "render adds nothing while a task is running",
+      "hook": "protocols",
+      "path": [
+        "openai_video",
+        "render"
+      ],
+      "args": [
+        {
+          "protocol": "openai_video",
+          "operation": "retrieve"
+        },
+        {
+          "task_id": "task_a",
+          "status": "IN_PROGRESS",
+          "progress": "40%"
+        }
+      ],
+      "expected": {}
+    },
+    {
+      "name": "render never leaks the upstream snapshot",
+      "hook": "protocols",
+      "path": [
+        "openai_video",
+        "render"
+      ],
+      "args": [
+        {
+          "protocol": "openai_video",
+          "operation": "retrieve"
+        },
+        {
+          "task_id": "task_a",
+          "status": "SUCCESS",
+          "data": {
+            "output": {
+              "video_url": "https://upstream.invalid/video.mp4?secret=hidden"
+            }
+          }
+        }
+      ],
+      "expected": {
+        "url": "/v1/videos/task_a/content"
+      }
+    }
+  ]
+}

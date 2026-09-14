@@ -41,7 +41,7 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *common.RelayInfo
 
 // ConvertImageRequest implements channel.Adaptor.
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *common.RelayInfo, request dto.ImageRequest) (any, error) {
-	return nil, errors.New("not implemented")
+	return nil, channel.ErrNotImplemented
 }
 
 // ConvertOpenAIRequest implements channel.Adaptor.

@@ -30,7 +30,7 @@ export const modelGroupSelectorLayoutClasses = {
   modelItem:
     'relative mb-0.5 flex items-center justify-between rounded-md border border-transparent px-2 py-1.5 pl-3 text-[12px] leading-4 transition-colors before:absolute before:inset-y-2 before:left-1 before:w-1 before:rounded-full before:bg-transparent',
   selectedModelItem:
-    'border-primary/40 bg-primary/12 text-foreground shadow-sm before:bg-primary',
+    'border-foreground/40 bg-accent text-foreground shadow-sm before:bg-foreground',
   unselectedModelItem:
     'text-muted-foreground hover:bg-accent hover:text-foreground',
   selectedModelText: 'font-semibold text-foreground',

@@ -17,5 +17,5 @@
 ## 3. CI 与发布
 
 - `.github/` 内为 issue/PR 模板与 workflows（构建、测试、镜像发布）。
-- Docker 镜像：[Dockerfile](../../../Dockerfile) 多阶段构建（前端构建 → Go 编译 → 运行镜像），`docker-compose.yml` 提供一键编排（含 SQLite/Redis 组合）。
+- Docker 镜像：[Dockerfile](../../Dockerfile) 多阶段构建（前端构建 → Go 编译 → 运行镜像），`docker-compose.yml` 提供一键编排（含 SQLite/Redis 组合）。
 - 前端 `scripts/` 下有格式保护（受保护头部注释）与版权检查脚本（`format-with-protected-headers.mjs`、`add-copyright.mjs`），发布前经 `bun run format:check` / `copyright:check` 校验。

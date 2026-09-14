@@ -37,8 +37,11 @@ export function Playground() {
       <Tabs className='min-h-0 flex-1' value={activeTab} onValueChange={setActiveTab}>
         <div className='flex flex-col'>
           {/* flex + mx-auto on the list centres it while it fits, and collapses
-              to a scrollable left-aligned row once it is wider than the bar. */}
-          <div className='flex overflow-x-auto px-4 pt-3'>
+              to a scrollable left-aligned row once it is wider than the bar.
+              overflow-y is pinned to hidden: leaving it visible makes the
+              browser compute it as auto, which puts a stray vertical scrollbar
+              on the right of the bar over a sub-pixel height difference. */}
+          <div className='flex overflow-x-auto overflow-y-hidden px-4 pt-3'>
             <TabsList className='mx-auto min-w-max'>
               <TabsTrigger className='gap-1.5 px-3 sm:min-w-36 sm:px-4' value='chat'>
                 <MessageSquare className='size-4' />

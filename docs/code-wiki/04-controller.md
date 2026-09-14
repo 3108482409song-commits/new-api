@@ -1,12 +1,12 @@
 # 04 控制器层（controller/）
 
-控制器是 Gin 的 handler 集合，按领域划分（文件名即领域）。核心是中继控制器 [relay.go](../../../controller/relay.go)。
+控制器是 Gin 的 handler 集合，按领域划分（文件名即领域）。核心是中继控制器 [relay.go](../../controller/relay.go)。
 
 ## 1. 中继控制器（核心）
 
 ### Relay
 
-[controller/relay.go](../../../controller/relay.go#L73-L258) — 所有 `/v1` 类协议请求的统一入口 `Relay(c, relayFormat)`：
+[controller/relay.go](../../controller/relay.go#L73-L258) — 所有 `/v1` 类协议请求的统一入口 `Relay(c, relayFormat)`：
 
 1. `helper.GetAndValidateRequest(c, relayFormat)` — 按协议解析 + 校验请求（413/400 映射）
 2. `relaycommon.GenRelayInfo(c, relayFormat, request, ws)` — 生成全程贯通的 `RelayInfo`
@@ -39,8 +39,7 @@
 | auth_session.go / login_verification.go / secure_verification.go | 登录、验证码、二次验证 |
 | twofa.go / passkey.go / email_binding.go | TOTP、Passkey、邮箱绑定 |
 | oauth.go / custom_oauth.go | OAuth/OIDC 登录回调、自定义 provider |
-| authz.go / security_* | Casbin 角色授权接口、账户安全 |
-| twofa.go | 两步验证 |
+| authz.go / secure_verification.go | Casbin 角色授权接口、敏感操作二次验证（`security_*` 目前只存在于测试文件 `security_account_test.go`、`security_enrollment_test.go`） |
 
 ### 2.2 令牌与渠道
 
@@ -79,11 +78,14 @@
 | task_plugin_debug.go | 插件调试 |
 | plugin_protocol.go / plugin_protocol_limiter.go | 插件协议桥与限流 |
 | system_task.go / system_task_handlers.go | 系统定时任务注册与 handler |
-| video_proxy.go | 视频产物代理 |
+| video_proxy.go | 视频产物代理（任务产物经此代理回源，配合产物访问控制） |
+| workbench.go | **Workbench 工作台**：`WorkbenchImage`（图像生成/编辑，`/pg/images/*`）与视频任务端点（`/pg/video/generations`，复用插件协议链）；含 `maxWorkbenchCaptureBytes` 限制回传体积 |
 
 ### 2.6 其他
 
 - misc.go、setup.go、option.go（系统选项）、checkin.go（签到）、wechat.go（微信相关）、telegram.go（Telegram 通知）、uptime_kuma.go、vendor_meta.go、deployment.go、return_path.go 等。
+- 审计与访问令牌：audit.go（审计内容模板与查询）、access_token.go（访问令牌管理，配合 `middleware.AccessTokenAudit`）。
+- 媒体与分组辅助：image.go、midjourney.go（Midjourney 轮询汇总）、group.go（分组管理）、channel_affinity_cache.go（渠道亲和缓存）、revalidated_response.go（ETag 再校验响应头，`etagVersionPublicContent`）。
 
 ## 3. 约定
 

@@ -157,12 +157,24 @@ export interface WorkbenchModel {
   image: boolean
   video: boolean
   platform?: string
+  /**
+   * How many reference images an image edit may carry for this model, or 0 when
+   * the server has no limit configured for it. Published by the backend so the
+   * picker enforces the same limit the upload validator enforces.
+   */
+  max_reference_images?: number
 }
 
 export interface WorkbenchEstimateResult {
   quota: number
   usd: number
   free_model: boolean
+  /**
+   * True when the amount comes from a configured per-call price, which is the
+   * exact charge. False means the number is a pre-consume derived from a token
+   * ratio, so it can only be presented as an estimate.
+   */
+  use_price: boolean
   estimate: boolean
 }
 
@@ -213,6 +225,12 @@ export interface WorkbenchTask {
   progress: string
   fail_reason: string
   result_url?: string
+  /**
+   * A small stand-in for the result: a URL or a data URL, empty while the task
+   * has no result yet. List responses carry this instead of the full payload,
+   * which is fetched one task at a time when a record is opened.
+   */
+  preview?: string
   submit_time: number
   start_time: number
   finish_time: number

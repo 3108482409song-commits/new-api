@@ -151,7 +151,7 @@ export function SyncSourcePriceCell(props: {
     <div
       className={cn(
         'flex min-h-10 min-w-0 items-center gap-3 rounded-md px-2 py-1 -mx-2',
-        context.selectedSources[model] === props.source && 'bg-primary/8'
+        context.selectedSources[model] === props.source && 'bg-accent'
       )}
     >
       {same ? (

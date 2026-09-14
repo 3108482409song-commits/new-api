@@ -30,29 +30,33 @@ func (t *TaskResponse[T]) IsSuccess() bool {
 }
 
 type TaskDto struct {
-	ID                   int64           `json:"id"`
-	CreatedAt            int64           `json:"created_at"`
-	UpdatedAt            int64           `json:"updated_at"`
-	TaskID               string          `json:"task_id"`
-	Platform             string          `json:"platform"`
-	UserId               int             `json:"user_id"`
-	Group                string          `json:"group"`
-	ChannelId            int             `json:"channel_id"`
-	Quota                int             `json:"quota"`
-	Action               string          `json:"action"`
-	Status               string          `json:"status"`
-	FailReason           string          `json:"fail_reason"`
-	ResultURL            string          `json:"result_url,omitempty"` // 任务结果 URL（视频地址等）
-	LegacyVideoAvailable bool            `json:"legacy_video_available,omitempty"`
-	SubmitTime           int64           `json:"submit_time"`
-	StartTime            int64           `json:"start_time"`
-	FinishTime           int64           `json:"finish_time"`
-	Progress             string          `json:"progress"`
-	Properties           any             `json:"properties"`
-	Username             string          `json:"username,omitempty"`
-	Data                 json.RawMessage `json:"data"`
-	AdminInfo            *TaskAdminInfo  `json:"admin_info,omitempty"`
-	RootInfo             *TaskRootInfo   `json:"root_info,omitempty"`
+	ID                   int64  `json:"id"`
+	CreatedAt            int64  `json:"created_at"`
+	UpdatedAt            int64  `json:"updated_at"`
+	TaskID               string `json:"task_id"`
+	Platform             string `json:"platform"`
+	UserId               int    `json:"user_id"`
+	Group                string `json:"group"`
+	ChannelId            int    `json:"channel_id"`
+	Quota                int    `json:"quota"`
+	Action               string `json:"action"`
+	Status               string `json:"status"`
+	FailReason           string `json:"fail_reason"`
+	ResultURL            string `json:"result_url,omitempty"` // 任务结果 URL（视频地址等）
+	LegacyVideoAvailable bool   `json:"legacy_video_available,omitempty"`
+	SubmitTime           int64  `json:"submit_time"`
+	StartTime            int64  `json:"start_time"`
+	FinishTime           int64  `json:"finish_time"`
+	Progress             string `json:"progress"`
+	Properties           any    `json:"properties"`
+	// Preview is a small stand-in for the result, so a list can render a
+	// thumbnail without shipping the full payload. It is a URL or a data URL, and
+	// empty when the task has no result worth previewing yet.
+	Preview   string          `json:"preview,omitempty"`
+	Username  string          `json:"username,omitempty"`
+	Data      json.RawMessage `json:"data"`
+	AdminInfo *TaskAdminInfo  `json:"admin_info,omitempty"`
+	RootInfo  *TaskRootInfo   `json:"root_info,omitempty"`
 }
 
 type TaskPluginInfo struct {

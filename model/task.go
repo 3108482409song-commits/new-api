@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql/driver"
 	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -215,13 +216,18 @@ func (p TaskPrivateData) Value() (driver.Value, error) {
 
 // SyncTaskQueryParams 用于包含所有搜索条件的结构体，可以根据需求添加更多字段
 type SyncTaskQueryParams struct {
-	Platform       constant.TaskPlatform
-	ChannelID      string
-	TaskID         string
-	UserID         string
-	Action         string
-	Actions        []string
-	Status         string
+	Platform  constant.TaskPlatform
+	ChannelID string
+	TaskID    string
+	UserID    string
+	Action    string
+	Actions   []string
+	Status    string
+	// Statuses matches any of the listed statuses. The UI groups several states
+	// under one filter (e.g. "running" covers NOT_START/SUBMITTED/QUEUED/
+	// IN_PROGRESS), which a single-value Status cannot express. Status still wins
+	// when Statuses is empty, so existing callers are unaffected.
+	Statuses       []string
 	StartTimestamp int64
 	EndTimestamp   int64
 	UserIDs        []int
@@ -281,7 +287,9 @@ func TaskGetAllUserTask(userId int, startIdx int, num int, queryParams SyncTaskQ
 	} else if queryParams.Action != "" {
 		query = query.Where("action = ?", queryParams.Action)
 	}
-	if queryParams.Status != "" {
+	if len(queryParams.Statuses) > 0 {
+		query = query.Where("status IN ?", queryParams.Statuses)
+	} else if queryParams.Status != "" {
 		query = query.Where("status = ?", queryParams.Status)
 	}
 	if queryParams.Platform != "" {
@@ -332,7 +340,9 @@ func TaskGetAllTasks(startIdx int, num int, queryParams SyncTaskQueryParams) []*
 	} else if queryParams.Action != "" {
 		query = query.Where("action = ?", queryParams.Action)
 	}
-	if queryParams.Status != "" {
+	if len(queryParams.Statuses) > 0 {
+		query = query.Where("status IN ?", queryParams.Statuses)
+	} else if queryParams.Status != "" {
 		query = query.Where("status = ?", queryParams.Status)
 	}
 	if queryParams.StartTimestamp != 0 {
@@ -450,6 +460,53 @@ func GetByTaskIdsForPlatforms(userID int, platforms []constant.TaskPlatform, tas
 		return nil, err
 	}
 	return tasks, nil
+}
+
+// IsTerminal reports whether a task has reached a status it never leaves again.
+func (t TaskStatus) IsTerminal() bool {
+	return t == TaskStatusSuccess || t == TaskStatusFailure
+}
+
+// terminalTaskStatuses mirrors IsTerminal for the DELETE statement.
+var terminalTaskStatuses = []TaskStatus{TaskStatusSuccess, TaskStatusFailure}
+
+var (
+	// ErrTaskNotFound is returned for an unknown task and for one that belongs to
+	// another user: the caller must not be able to tell the two apart.
+	ErrTaskNotFound = errors.New("task not found")
+	// ErrTaskNotDeletable guards the poller: a running task still has an upstream
+	// job to collect, and removing the record would hide both the result and the
+	// reason the user was charged. Finished records carry no such obligation, so
+	// they are the only ones a user may clear from their history.
+	ErrTaskNotDeletable = errors.New("only a finished task can be deleted")
+)
+
+// DeleteTaskForUser removes one finished task record owned by userId. A task that
+// belongs to somebody else is reported as missing rather than as forbidden, so
+// the endpoint cannot be used to probe for other users' task ids.
+func DeleteTaskForUser(userId int, taskId string) error {
+	task, exists, err := GetByTaskId(userId, taskId)
+	if err != nil {
+		return err
+	}
+	if !exists || task == nil {
+		return ErrTaskNotFound
+	}
+	if !task.Status.IsTerminal() {
+		return ErrTaskNotDeletable
+	}
+	// Repeat the status in the DELETE so a task that somehow moves on between the
+	// check and the delete is not removed.
+	result := DB.
+		Where("user_id = ? and task_id = ? and status in ?", userId, taskId, terminalTaskStatuses).
+		Delete(&Task{})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrTaskNotDeletable
+	}
+	return nil
 }
 
 // GetTaskForProtocolObservation reloads one public task through the ownership
@@ -586,7 +643,9 @@ func TaskCountAllTasks(queryParams SyncTaskQueryParams) int64 {
 	} else if queryParams.Action != "" {
 		query = query.Where("action = ?", queryParams.Action)
 	}
-	if queryParams.Status != "" {
+	if len(queryParams.Statuses) > 0 {
+		query = query.Where("status IN ?", queryParams.Statuses)
+	} else if queryParams.Status != "" {
 		query = query.Where("status = ?", queryParams.Status)
 	}
 	if queryParams.StartTimestamp != 0 {
@@ -611,7 +670,9 @@ func TaskCountAllUserTask(userId int, queryParams SyncTaskQueryParams) int64 {
 	} else if queryParams.Action != "" {
 		query = query.Where("action = ?", queryParams.Action)
 	}
-	if queryParams.Status != "" {
+	if len(queryParams.Statuses) > 0 {
+		query = query.Where("status IN ?", queryParams.Statuses)
+	} else if queryParams.Status != "" {
 		query = query.Where("status = ?", queryParams.Status)
 	}
 	if queryParams.Platform != "" {

@@ -2,7 +2,7 @@
 
 ## 1. 多数据库支持
 
-[model/main.go](../../../model/main.go) 是数据库访问的底座：
+[model/main.go](../../model/main.go) 是数据库访问的底座：
 
 - `chooseDB()` 按环境变量决定主库/日志库引擎：PostgreSQL（`*SQL_DSN` 以 `postgres://` 开头）、MySQL（`mysql://`）、ClickHouse（仅日志库）、默认 SQLite（`SQLITE_PATH`）。
 - `InitDB()` 初始化主库连接池、设置 GORM 配置（含 MySQL utf8mb4、命名策略），并通过 `AutoMigrate` 建表；`InitLogDB()` 初始化日志库（`LOG_SQL_DSN` 为空时复用主库）。
@@ -10,8 +10,8 @@
   - `commonGroupCol` / `commonKeyCol` — 保留字列名（`group`、`key`）按方言加引号
   - `commonTrueVal` / `commonFalseVal` — 布尔值方言化
   - `common.UsingMainDatabase(...)` / `common.UsingLogDatabase(...)` — 分库分支
-- [locking.go](../../../model/locking.go)：`lockForUpdate(tx)` — 行锁标准化（MySQL/PostgreSQL `FOR UPDATE`，SQLite 跳过）。
-- [migration_dialector.go](../../../model/migration_dialector.go)：迁移方言处理（SQLite 用 `ADD COLUMN` 等模式）。
+- [locking.go](../../model/locking.go)：`lockForUpdate(tx)` — 行锁标准化（MySQL/PostgreSQL `FOR UPDATE`，SQLite 跳过）。
+- [migration_dialector.go](../../model/migration_dialector.go)：迁移方言处理（SQLite 用 `ADD COLUMN` 等模式）。
 - 约束：所有代码必须同时兼容 SQLite、MySQL ≥5.7.8、PostgreSQL ≥9.6，日志库额外支持 ClickHouse。
 
 ## 2. 核心数据模型（GORM struct）
@@ -42,7 +42,7 @@
 | `AccountSecurity` | account_security.go | 账户安全事件 |
 | `AuditLog` | audit_log.go | 审计日志；audit_other.go 为审计上下文 |
 | `ModelMeta` / `ModelPricingConfig` | model_meta.go、model_pricing_config.go | 模型元数据、模型定价配置 |
-| `Redeem/PrefillGroup` | prefill_group.go | 预填充分组 |
+| `Redemption` / `PrefillGroup` | redemption.go、prefill_group.go | 兑换码、预填充分组 |
 | `SystemInstance` | system_instance.go | 运行实例上报（多节点可见性） |
 | `PerfMetric` | perf_metric.go | 性能指标落库 |
 | `Usedata` | usedata.go | 看板聚合数据；usedata_flow.go 流量 |
@@ -59,7 +59,7 @@
 ## 4. 定价缓存（pricing.go / pricing_default.go）
 
 - `GetPricing()` 提供按模型/渠道/分组解析后的价格数据（`PriceData`），带并发锁与定期刷新（`pricing_refresh.go`）。
-- 内置模型价格由 [billing_setting/builtin_billing.go](../../../setting/billing_setting/builtin_billing.go) 以**自包含计费表达式**定义（USD/百万 token，支持上下文长度阶梯与缓存类别），表达式系统详见 [09-plugins.md](09-plugins.md) 第 3 节与 `pkg/billingexpr/expr.md`。
+- 内置模型价格由 [billing_setting/builtin_billing.go](../../setting/billing_setting/builtin_billing.go) 以**自包含计费表达式**定义（USD/百万 token，支持上下文长度阶梯与缓存类别），表达式系统详见 [09-plugins.md](09-plugins.md) 第 3 节与 `pkg/billingexpr/expr.md`。
 
 ## 5. 其他要点
 

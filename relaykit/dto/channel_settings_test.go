@@ -543,6 +543,64 @@ func TestAdvancedCustomSupportedEndpointTypesForModel(t *testing.T) {
 	}, config.SupportedEndpointTypesForModel("other-model"))
 }
 
+// 工作台使用 /pg/images/*，渠道路由按标准 /v1/images/* 登记：匹配必须归一化，
+// 否则分发器的路径过滤与适配器的路由解析都会判定「不支持该请求路径」。
+func TestAdvancedCustomWorkbenchImagePathsMatchStandardRoutes(t *testing.T) {
+	config := &AdvancedCustomConfig{
+		Routes: []AdvancedCustomRoute{
+			{
+				IncomingPath: "/v1/images/generations",
+				UpstreamPath: "/v1/images/generations",
+				Models:       []string{"gpt-image-1"},
+			},
+			{
+				IncomingPath: "/v1/images/edits",
+				UpstreamPath: "/v1/images/edits",
+				Models:       []string{"gpt-image-1"},
+			},
+		},
+	}
+	require.NoError(t, config.Validate())
+
+	for _, testCase := range []struct {
+		workbench string
+		standard  string
+	}{
+		{advancedCustomWorkbenchPathImageGeneration, advancedCustomEndpointPathImageGeneration},
+		{advancedCustomWorkbenchPathImageEdit, advancedCustomEndpointPathImageEdit},
+	} {
+		assert.True(t, config.SupportsPathForModel(testCase.workbench, "gpt-image-1"), testCase.workbench)
+		route, ok := config.MatchPathForModel(testCase.workbench, "gpt-image-1")
+		require.True(t, ok, testCase.workbench)
+		assert.Equal(t, testCase.standard, route.IncomingPath)
+	}
+
+	// 归一化不放宽模型规则。
+	assert.False(t, config.SupportsPathForModel(advancedCustomWorkbenchPathImageGeneration, "dall-e-3"))
+
+	// 非图片工作台路径不受影响。
+	assert.False(t, config.SupportsPathForModel("/pg/chat/completions", "gpt-image-1"))
+	assert.Equal(t, "/v1/chat/completions", canonicalIncomingPath("/v1/chat/completions"))
+	assert.Equal(t, "/pg/chat/completions", canonicalIncomingPath("/pg/chat/completions"))
+}
+
+// 图片编辑入站路径必须被识别为图片端点，渠道能力枚举才完整。
+func TestAdvancedCustomImageEditEndpointType(t *testing.T) {
+	config := &AdvancedCustomConfig{
+		Routes: []AdvancedCustomRoute{
+			{
+				IncomingPath: "/v1/images/edits",
+				UpstreamPath: "/v1/images/edits",
+				Models:       []string{"gpt-image-1"},
+			},
+		},
+	}
+	require.NoError(t, config.Validate())
+
+	assert.Equal(t, []types.EndpointType{types.EndpointTypeImageGeneration},
+		config.SupportedEndpointTypesForModel("gpt-image-1"))
+}
+
 func TestAdvancedCustomValidateAlphaSearchConverterPath(t *testing.T) {
 	valid := &AdvancedCustomConfig{
 		Routes: []AdvancedCustomRoute{

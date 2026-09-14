@@ -207,7 +207,7 @@ export function VideoPanel({ active = true }: { active?: boolean }) {
       const page = await getUserWorkbenchTasks({
         actions: ['text_to_video', 'image_to_video', 'first_tail_to_video', 'reference_to_video'],
         page: 1,
-        pageSize: 8,
+        pageSize: 20,
       })
       return page.items.filter(isWorkbenchTask)
     },
@@ -303,8 +303,8 @@ export function VideoPanel({ active = true }: { active?: boolean }) {
             </span>
           </div>
         ) : null}
-        {submittedTask.status === 'SUCCESS' && submittedTask.result_url ? (
-          <VideoResult url={submittedTask.result_url} />
+        {submittedTask.status === 'SUCCESS' && submittedTask.preview ? (
+          <VideoResult url={submittedTask.preview} />
         ) : null}
         {submittedTask.status === 'FAILURE' ? (
           <p className='max-w-md break-words text-sm text-destructive'>
@@ -355,7 +355,9 @@ export function VideoPanel({ active = true }: { active?: boolean }) {
     )
   } else if (recentQuery.data && recentQuery.data.length > 0) {
     recentContent = (
-      <ul className='flex flex-col gap-2'>
+      // The list owns the scrolling so a long history never pushes the heading
+      // out of the column.
+      <ul className='flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pr-1'>
         {recentQuery.data.map((task) => (
           <li key={task.task_id}>
             <button
@@ -364,13 +366,13 @@ export function VideoPanel({ active = true }: { active?: boolean }) {
               type='button'
               onClick={() => setSubmittedTaskId(task.task_id)}
             >
-              {task.status === 'SUCCESS' && task.result_url ? (
+              {task.status === 'SUCCESS' && task.preview ? (
                 // eslint-disable-next-line jsx-a11y/media-has-caption
                 <video
                   className='size-12 shrink-0 rounded object-cover'
                   muted
                   preload='metadata'
-                  src={task.result_url}
+                  src={task.preview}
                 />
               ) : (
                 <span className={`${statusDotClass(task.status)} mx-1 shrink-0`} />
@@ -688,6 +690,7 @@ export function VideoPanel({ active = true }: { active?: boolean }) {
             className='w-full'
             disabled={!canGenerate}
             type='button'
+            variant='secondary'
             onClick={() => generate.mutate()}
           >
             {generate.isPending ? <Spinner className='mr-2' /> : null}
@@ -718,7 +721,7 @@ export function VideoPanel({ active = true }: { active?: boolean }) {
         maxSize={isMobile ? undefined : '15%'}
         minSize={isMobile ? '18%' : '15%'}
       >
-        <div className='flex h-full min-w-0 flex-col gap-3 overflow-y-auto p-4'>
+        <div className='flex h-full min-w-0 flex-col gap-3 p-4'>
           <h3 className='text-sm font-medium'>{t('Recent generations')}</h3>
           {recentContent}
         </div>

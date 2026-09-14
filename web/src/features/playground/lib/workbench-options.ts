@@ -33,6 +33,25 @@ interface ImageModelSizeRule {
 // Unknown models fall back to a neutral square/landscape/portrait set.
 const IMAGE_MODEL_SIZE_RULES: ImageModelSizeRule[] = [
   {
+    // gpt-image-2 accepts arbitrary WIDTHxHEIGHT (both edges divisible by 16,
+    // ratio within 1:3..3:1), so it is the only OpenAI family that can actually
+    // output 3:4 and 4:3. Checked before the generic gpt-image rule.
+    prefix: 'gpt-image-2',
+    sizes: [
+      { value: '1024x1024', label: '1024x1024' }, // 1:1
+      { value: '1536x1024', label: '1536x1024' }, // 3:2
+      { value: '1024x1536', label: '1024x1536' }, // 2:3
+      { value: '1536x1152', label: '1536x1152' }, // 4:3
+      { value: '1152x1536', label: '1152x1536' }, // 3:4
+      { value: '1536x864', label: '1536x864' }, // 16:9
+      { value: '864x1536', label: '864x1536' }, // 9:16
+    ],
+    quality: [
+      { value: 'medium', label: 'Medium' },
+      { value: 'high', label: 'High' },
+    ],
+  },
+  {
     prefix: 'dall-e-2',
     sizes: [
       { value: '256x256', label: '256x256' },
@@ -53,6 +72,8 @@ const IMAGE_MODEL_SIZE_RULES: ImageModelSizeRule[] = [
     ],
   },
   {
+    // gpt-image-1 / 1.5 / mini only accept these three sizes plus "auto": they
+    // genuinely cannot produce 3:4 or 4:3, so those ratios are never offered.
     prefix: 'gpt-image',
     sizes: [
       { value: '1024x1024', label: '1024x1024' },
@@ -69,7 +90,7 @@ const IMAGE_MODEL_SIZE_RULES: ImageModelSizeRule[] = [
 const FALLBACK_IMAGE_SIZES: ImageSizeOption[] = [
   { value: '1024x1024', label: '1024x1024' },
   { value: '1280x720', label: '1280x720' },
-  { value: '1920x1080', label: '1920x1080' },
+  { value: '720x1280', label: '720x1280' },
 ]
 
 export function imageSizesForModel(model: string): ImageSizeOption[] {
@@ -93,34 +114,64 @@ export function imageQualityForModel(model: string): ImageSizeOption[] {
 }
 
 export interface AspectOption {
+  /** Reduced aspect ratio derived from `size`, e.g. "3:2". */
   value: string
-  /** Preferred pixel sizes, in order, mapped onto the model's supported sizes */
-  candidates: string[]
+  /** The concrete pixel size this ratio maps onto. */
+  size: string
 }
 
-// Aspect-ratio buttons shown in the image workbench. The selected aspect is
-// translated into a concrete pixel size supported by the chosen model.
-export const IMAGE_ASPECT_OPTIONS: AspectOption[] = [
-  { value: '1:1', candidates: ['1024x1024'] },
-  { value: '3:2', candidates: ['1536x1024', '1792x1024', '1024x1024'] },
-  { value: '2:3', candidates: ['1024x1536', '1024x1792', '1024x1024'] },
-  { value: '16:9', candidates: ['1792x1024', '1536x1024', '1024x1024'] },
-  { value: '9:16', candidates: ['1024x1792', '1024x1536', '1024x1024'] },
-]
+function greatestCommonDivisor(a: number, b: number): number {
+  let left = a
+  let right = b
+  while (right !== 0) {
+    const remainder = left % right
+    left = right
+    right = remainder
+  }
+  return left
+}
+
+/** Reduced ratio of a `WIDTHxHEIGHT` size, e.g. "1536x1024" -> "3:2". */
+export function aspectRatioOf(size: string): string | null {
+  const match = size.match(/^(\d+)x(\d+)$/)
+  if (!match) {
+    return null
+  }
+  const width = Number(match[1])
+  const height = Number(match[2])
+  if (width <= 0 || height <= 0) {
+    return null
+  }
+  const divisor = greatestCommonDivisor(width, height)
+  return `${width / divisor}:${height / divisor}`
+}
+
+/**
+ * Aspect buttons for a model, derived from the pixel sizes it actually
+ * supports. The label is the ratio of the size that will really be requested,
+ * so a model that cannot output a ratio never offers it: gpt-image-1 offers
+ * 1:1 / 3:2 / 2:3 only, while the arbitrary-resolution gpt-image-2 family also
+ * offers true 4:3 / 3:4 / 16:9 / 9:16.
+ */
+export function imageAspectOptions(model: string): AspectOption[] {
+  const seen = new Set<string>()
+  const options: AspectOption[] = []
+  for (const size of imageSizesForModel(model)) {
+    const ratio = aspectRatioOf(size.value)
+    if (!ratio || seen.has(ratio)) {
+      continue
+    }
+    seen.add(ratio)
+    options.push({ value: ratio, size: size.value })
+  }
+  return options
+}
 
 export function sizeForAspect(model: string, aspect: string): string {
-  const supported = imageSizesForModel(model).map((option) => option.value)
-  if (supported.length === 0) {
-    return ''
-  }
-  const option = IMAGE_ASPECT_OPTIONS.find((item) => item.value === aspect)
-  const candidates = option?.candidates ?? []
-  for (const candidate of candidates) {
-    if (supported.includes(candidate)) {
-      return candidate
-    }
-  }
-  return supported[0]
+  return (
+    imageAspectOptions(model).find((option) => option.value === aspect)?.size ??
+    ''
+  )
 }
 
 export type QualityChoice = 'auto' | 'low' | 'medium' | 'high'

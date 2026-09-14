@@ -76,6 +76,19 @@ func GetTaskArtifacts(c *gin.Context) {
 	writeTaskArtifacts(c, task, false)
 }
 
+// DeleteUserTask drops one finished generation record from the caller's history.
+// Billing is untouched: quota is settled through the log rows, and a task row is
+// only the display record the workbench lists. The model layer owns both the
+// ownership check and the finished-only rule, so the two cannot drift.
+func DeleteUserTask(c *gin.Context) {
+	taskId := c.Param("task_id")
+	if err := model.DeleteTaskForUser(c.GetInt("id"), taskId); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, gin.H{"task_id": taskId})
+}
+
 func GetDashboardTaskArtifacts(c *gin.Context) {
 	task, exists, err := getTaskForArtifactRequest(c, c.Param("task_id"))
 	if err != nil {
@@ -375,7 +388,7 @@ func GetAllTask(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
 	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
 	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
-	queryParams := model.SyncTaskQueryParams{Platform: constant.TaskPlatform(c.Query("platform")), TaskID: c.Query("task_id"), Status: c.Query("status"), Action: c.Query("action"), StartTimestamp: startTimestamp, EndTimestamp: endTimestamp, ChannelID: c.Query("channel_id")}
+	queryParams := model.SyncTaskQueryParams{Platform: constant.TaskPlatform(c.Query("platform")), TaskID: c.Query("task_id"), Status: c.Query("status"), Statuses: splitCommaSeparated(c.Query("statuses")), Action: c.Query("action"), StartTimestamp: startTimestamp, EndTimestamp: endTimestamp, ChannelID: c.Query("channel_id")}
 	items := model.TaskGetAllTasks(pageInfo.GetStartIdx(), pageInfo.GetPageSize(), queryParams)
 	pageInfo.SetTotal(int(model.TaskCountAllTasks(queryParams)))
 	pageInfo.SetItems(tasksToDto(items, true, c.GetInt("role")))
@@ -387,14 +400,39 @@ func GetUserTask(c *gin.Context) {
 	userID := c.GetInt("id")
 	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
 	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
-	queryParams := model.SyncTaskQueryParams{Platform: constant.TaskPlatform(c.Query("platform")), TaskID: c.Query("task_id"), Status: c.Query("status"), Action: c.Query("action"), Actions: splitTaskActions(c.Query("actions")), StartTimestamp: startTimestamp, EndTimestamp: endTimestamp}
+	queryParams := model.SyncTaskQueryParams{Platform: constant.TaskPlatform(c.Query("platform")), TaskID: c.Query("task_id"), Status: c.Query("status"), Statuses: splitCommaSeparated(c.Query("statuses")), Action: c.Query("action"), Actions: splitCommaSeparated(c.Query("actions")), StartTimestamp: startTimestamp, EndTimestamp: endTimestamp}
 	items := model.TaskGetAllUserTask(userID, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), queryParams)
 	pageInfo.SetTotal(int(model.TaskCountAllUserTask(userID, queryParams)))
-	pageInfo.SetItems(tasksToDto(items, false, common.RoleCommonUser))
+	pageInfo.SetItems(tasksToSummaryDto(items, common.RoleCommonUser))
 	common.ApiSuccess(c, pageInfo)
 }
 
-func splitTaskActions(value string) []string {
+// GetUserTaskDetail returns one owned task with its full result payload. The list
+// carries only a preview, so the viewer asks for the single record it is about to
+// display instead of every result on the page.
+func GetUserTaskDetail(c *gin.Context) {
+	task, exists, err := model.GetByTaskId(c.GetInt("id"), c.Param("task_id"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if !exists || task == nil {
+		// Another user's task is reported as missing for the same reason the
+		// delete endpoint does it: the response must not reveal that it exists.
+		common.ApiError(c, model.ErrTaskNotFound)
+		return
+	}
+	item := tasksToDto([]*model.Task{task}, false, common.RoleCommonUser)[0]
+	// The detail view plays or downloads the result, and a video is only
+	// reachable through its artifact URL, so the preview travels with the record.
+	item.Preview = buildTaskPreview(task)
+	common.ApiSuccess(c, item)
+}
+
+// splitCommaSeparated parses the repeated-value query parameters (actions,
+// statuses) the task list uses for multi-select filters. A blank value yields
+// nil so the caller can tell "no filter" from "filter matching nothing".
+func splitCommaSeparated(value string) []string {
 	if value == "" {
 		return nil
 	}
@@ -405,6 +443,9 @@ func splitTaskActions(value string) []string {
 		if part != "" {
 			result = append(result, part)
 		}
+	}
+	if len(result) == 0 {
+		return nil
 	}
 	return result
 }

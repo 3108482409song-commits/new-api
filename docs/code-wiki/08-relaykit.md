@@ -12,16 +12,16 @@
 
 | 包 | 职责 |
 | --- | --- |
-| `relaykit/types` | 协议无关的基础类型：[relay_format.go](../../../relaykit/types/relay_format.go) 的 `RelayFormat` 枚举（openai、claude、gemini、openai_responses、task、mj_proxy、embedding、image、audio、rerank…）；`NewAPIError`、`TaskCountMeta`、`ChannelError`、`RequestMeta`、`FileData` 等 |
+| `relaykit/types` | 协议无关的基础类型：[relay_format.go](../../relaykit/types/relay_format.go) 的 `RelayFormat` 枚举（openai、claude、gemini、openai_responses、task、mj_proxy、embedding、image、audio、rerank…）；`NewAPIError`、`TokenCountMeta`（token 计数元信息，见 [request_meta.go](../../relaykit/types/request_meta.go)）、`ChannelError`、`RequestMeta`、`FileData`（`LocalFileData`）等 |
 | `relaykit/dto` | 各协议的请求/响应结构体：`GeneralOpenAIRequest`、`ClaudeRequest`、`GeminiChatRequest`、`OpenAIResponsesRequest`、`ImageRequest`、`AudioRequest`、`EmbeddingRequest`、`RerankRequest`、`ChannelSettings` 等。可选标量字段遵循指针 + `omitempty` 规则（保留显式零值） |
-| `relaykit/relayconvert` | 转换实现：[convmeta](../../../relaykit/relayconvert/convmeta)（转换元数据，如 `ClaudeConvertInfo`）、reasoning（推理意图）、kitutil（工具，含独立 JSON 包装 `kitutil/json.go`）、internal（内部实现）、testdata |
+| `relaykit/relayconvert` | 转换实现与**注册表入口**：`ConvertRequest` / `ConvertResponse`（及 `LookupRequestConverter`、`ConvertResponseByID` 等）按"源格式→目标格式"路由到具体转换函数，流式侧为 `ConvertStreamResponseChunk` / `FinalizeStreamResponse`（配合 `NewResponseStreamState`）；另有 [convmeta](../../relaykit/relayconvert/convmeta)（转换元数据，如 `ClaudeConvertInfo`）、reasoning（推理意图）、kitutil（工具，含独立 JSON 包装 `kitutil/json.go`）、request_compat.go / response_compat.go（成对兼容快捷函数，如 `ClaudeMessagesRequestToOpenAIChat`）、text_converter_registry.go（文本转换质量评级 good/fair/discouraged）、internal（`claude_messages`/`gemini_chat`/`oai_chat`/`oai_responses`/`toolconv`/`shared` 等内部实现）、testdata |
 | `relaykit/reasonmap` | 推理级别/思考内容的映射表 |
 
 ## 3. 与主模块的呼应
 
-- 主模块 [relay/common](../../../relay/common/) 的 `RelayInfo` 通过类型别名复用 relaykit 类型（如 `type ClaudeConvertInfo = convmeta.ClaudeConvertInfo`）。
+- 主模块 [relay/common](../../relay/common/) 的 `RelayInfo` 通过类型别名复用 relaykit 类型（如 `type ClaudeConvertInfo = convmeta.ClaudeConvertInfo`）。
 - `common/json.go` 是主模块的 JSON 包装；relaykit 内对应使用 `kitutil.*`（relaykit 自带的 JSON 工具），两者互不依赖。
-- `types.NewAPIError` 在中继错误处理中作为统一错误载体，按协议转成 OpenAI/Claude 错误响应（见 [controller/relay.go](../../../controller/relay.go) 的 defer 错误处理）。
+- `types.NewAPIError` 在中继错误处理中作为统一错误载体，按协议转成 OpenAI/Claude 错误响应（见 [controller/relay.go](../../controller/relay.go) 的 defer 错误处理）。
 
 ## 4. 为什么独立
 

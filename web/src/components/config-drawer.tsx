@@ -177,7 +177,7 @@ function RadioGroupItem(props: {
       <div
         className={cn(
           'ring-border relative rounded-md ring-[1px]',
-          'group-data-checked:ring-primary group-data-checked:shadow-2xl',
+          'group-data-checked:ring-foreground group-data-checked:shadow-2xl',
           'group-focus-visible:ring-2'
         )}
         role='img'
@@ -195,7 +195,7 @@ function RadioGroupItem(props: {
         <props.item.icon
           className={cn(
             !isTheme &&
-              'stroke-primary fill-primary group-data-unchecked:stroke-muted-foreground group-data-unchecked:fill-muted-foreground'
+              'stroke-foreground fill-foreground group-data-unchecked:stroke-muted-foreground group-data-unchecked:fill-muted-foreground'
           )}
           aria-hidden='true'
         />
@@ -269,7 +269,7 @@ function PresetConfig() {
             <div
               className={cn(
                 'ring-border relative h-12 rounded-md ring-[1px] transition',
-                'group-data-checked:ring-primary group-data-checked:shadow-md',
+                'group-data-checked:ring-foreground group-data-checked:shadow-md',
                 'group-focus-visible:ring-2',
                 'group-hover:ring-primary/60'
               )}
@@ -286,7 +286,7 @@ function PresetConfig() {
               />
               <CircleCheck
                 className={cn(
-                  'fill-primary absolute top-0 right-0 z-10 size-5 translate-x-1/2 -translate-y-1/2 stroke-white',
+                  'fill-foreground absolute top-0 right-0 z-10 size-5 translate-x-1/2 -translate-y-1/2 stroke-background',
                   'group-data-unchecked:hidden'
                 )}
                 aria-hidden='true'
@@ -352,14 +352,14 @@ function FontConfig() {
             <div
               className={cn(
                 'ring-border relative h-12 rounded-md ring-[1px] transition',
-                'group-data-checked:ring-primary group-data-checked:shadow-md',
+                'group-data-checked:ring-foreground group-data-checked:shadow-md',
                 'group-focus-visible:ring-2',
                 'group-hover:ring-primary/60'
               )}
             >
               <CircleCheck
                 className={cn(
-                  'fill-primary absolute top-0 right-0 z-10 size-5 translate-x-1/2 -translate-y-1/2 stroke-white',
+                  'fill-foreground absolute top-0 right-0 z-10 size-5 translate-x-1/2 -translate-y-1/2 stroke-background',
                   'group-data-unchecked:hidden'
                 )}
                 aria-hidden='true'
@@ -428,14 +428,14 @@ function RadiusConfig() {
             <div
               className={cn(
                 'ring-border relative h-12 rounded-md ring-[1px] transition',
-                'group-data-checked:ring-primary group-data-checked:shadow-md',
+                'group-data-checked:ring-foreground group-data-checked:shadow-md',
                 'group-focus-visible:ring-2',
                 'group-hover:ring-primary/60'
               )}
             >
               <CircleCheck
                 className={cn(
-                  'fill-primary absolute top-0 right-0 z-10 size-5 translate-x-1/2 -translate-y-1/2 stroke-white',
+                  'fill-foreground absolute top-0 right-0 z-10 size-5 translate-x-1/2 -translate-y-1/2 stroke-background',
                   'group-data-unchecked:hidden'
                 )}
                 aria-hidden='true'
@@ -515,14 +515,14 @@ function ScaleConfig() {
             <div
               className={cn(
                 'ring-border relative h-12 rounded-md ring-[1px] transition',
-                'group-data-checked:ring-primary group-data-checked:shadow-md',
+                'group-data-checked:ring-foreground group-data-checked:shadow-md',
                 'group-focus-visible:ring-2',
                 'group-hover:ring-primary/60'
               )}
             >
               <CircleCheck
                 className={cn(
-                  'fill-primary absolute top-0 right-0 z-10 size-5 translate-x-1/2 -translate-y-1/2 stroke-white',
+                  'fill-foreground absolute top-0 right-0 z-10 size-5 translate-x-1/2 -translate-y-1/2 stroke-background',
                   'group-data-unchecked:hidden'
                 )}
                 aria-hidden='true'
@@ -656,14 +656,14 @@ function ContentLayoutConfig() {
             <div
               className={cn(
                 'ring-border relative h-12 rounded-md ring-[1px] transition',
-                'group-data-checked:ring-primary group-data-checked:shadow-md',
+                'group-data-checked:ring-foreground group-data-checked:shadow-md',
                 'group-focus-visible:ring-2',
                 'group-hover:ring-primary/60'
               )}
             >
               <CircleCheck
                 className={cn(
-                  'fill-primary absolute top-0 right-0 z-10 size-5 translate-x-1/2 -translate-y-1/2 stroke-white',
+                  'fill-foreground absolute top-0 right-0 z-10 size-5 translate-x-1/2 -translate-y-1/2 stroke-background',
                   'group-data-unchecked:hidden'
                 )}
                 aria-hidden='true'

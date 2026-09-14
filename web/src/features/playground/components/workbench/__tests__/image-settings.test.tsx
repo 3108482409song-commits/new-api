@@ -17,7 +17,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, expect, it, vi } from 'vitest'
 
@@ -26,13 +32,17 @@ import { api } from '@/lib/api'
 import { ImagePanel } from '../image-panel'
 
 // The generation settings drive both the request and the quoted price, so the
-// control set is a contract: the size selector must expose every aspect the
-// workbench supports, the dense option groups stay three per row, and the image
-// count must stay inside the range the billing validators accept.
-const ASPECTS = ['1:1', '3:2', '2:3', '16:9', '9:16']
+// control set is a contract: the size selector must expose every ratio the
+// selected model can really output, the dense option groups stay three per row,
+// and the image count must stay inside the range the billing validators accept.
+//
+// gpt-image-1 only accepts 1024x1024 / 1536x1024 / 1024x1536, so it must not
+// offer 3:4 or 4:3: those ratios are not reachable with those sizes.
+const GPT_IMAGE_1_ASPECTS = ['1:1', '3:2', '2:3']
+const GPT_IMAGE_2_ASPECTS = ['1:1', '3:2', '2:3', '4:3', '3:4', '16:9', '9:16']
 const MAX_IMAGE_COUNT = '10'
 
-function mockImageApi() {
+function mockImageApi(modelName = 'gpt-image-1') {
   vi.spyOn(api, 'get').mockImplementation((url) => {
     if (url === '/api/user/self/groups') {
       return Promise.resolve({
@@ -43,7 +53,7 @@ function mockImageApi() {
       return Promise.resolve({
         data: {
           success: true,
-          data: [{ name: 'gpt-image-1', image: true, video: false }],
+          data: [{ name: modelName, image: true, video: false }],
         },
       })
     }
@@ -74,14 +84,35 @@ function renderImagePanel() {
   )
 }
 
+/** The offered ratios come from the selected model, so wait for it to apply. */
+async function findSizeGroupForModel(modelName: string) {
+  mockImageApi(modelName)
+  renderImagePanel()
+  await waitFor(() =>
+    expect(screen.getByRole('combobox', { name: 'Model' })).toHaveTextContent(
+      modelName
+    )
+  )
+  return screen.findByLabelText('Image size')
+}
+
 afterEach(() => vi.restoreAllMocks())
 
-it('offers landscape and portrait sizes alongside the square ones', async () => {
-  mockImageApi()
-  renderImagePanel()
+it('offers exactly the ratios the selected model can output', async () => {
+  const sizeGroup = await findSizeGroupForModel('gpt-image-1')
 
-  const sizeGroup = await screen.findByLabelText('Image size')
-  for (const aspect of ASPECTS) {
+  for (const aspect of GPT_IMAGE_1_ASPECTS) {
+    expect(within(sizeGroup).getByText(aspect)).toBeInTheDocument()
+  }
+  for (const aspect of ['4:3', '3:4']) {
+    expect(within(sizeGroup).queryByText(aspect)).not.toBeInTheDocument()
+  }
+})
+
+it('offers true 3:4 and 4:3 once the model supports arbitrary resolutions', async () => {
+  const sizeGroup = await findSizeGroupForModel('gpt-image-2')
+
+  for (const aspect of GPT_IMAGE_2_ASPECTS) {
     expect(within(sizeGroup).getByText(aspect)).toBeInTheDocument()
   }
 })
@@ -91,6 +122,14 @@ it('labels the size selector as an image size, not a canvas size', async () => {
   renderImagePanel()
 
   expect(await screen.findByLabelText('Image size')).toBeInTheDocument()
+})
+
+it('exposes separate accessible controls for group and model selection', async () => {
+  mockImageApi()
+  renderImagePanel()
+
+  expect(await screen.findByRole('combobox', { name: 'Group' })).toBeInTheDocument()
+  expect(screen.getByRole('combobox', { name: 'Model' })).toBeInTheDocument()
 })
 
 it('lays the size and quality choices out three per row', async () => {

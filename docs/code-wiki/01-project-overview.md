@@ -52,7 +52,8 @@ new-api/
 ├── web/               # React 前端（Rsbuild 构建 → web/dist 被 Go embed）
 ├── electron/          # Electron 桌面封装
 ├── e2e/               # 端到端测试
-└── bin/               # 二进制输出目录
+├── docs/              # 文档：code-wiki（本目录）、openapi/、plugin-api/、installation/ 等
+└── bin/               # 二进制输出目录（另含历史迁移 SQL）
 ```
 
 ## 4. 分层架构
@@ -86,8 +87,8 @@ new-api/
 
 ## 5. 一次请求的完整链路（以 `/v1/chat/completions` 为例）
 
-1. **路由**：[relay-router.go](../../../router/relay-router.go) 将 `/v1` 分组挂上 `TokenAuth` → `ModelRequestRateLimit` → `Distribute`，最终进入 `controller.Relay(c, RelayFormatOpenAI)`。
-2. **校验**：[controller/relay.go](../../../controller/relay.go#L73-L258) 中 `helper.GetAndValidateRequest` 按协议解析并校验请求（含 max_tokens 等计费乘数边界）。
+1. **路由**：[relay-router.go](../../router/relay-router.go) 将 `/v1` 分组挂上 `TokenAuth` → `ModelRequestRateLimit` → `Distribute`，最终进入 `controller.Relay(c, RelayFormatOpenAI)`。
+2. **校验**：[controller/relay.go](../../controller/relay.go#L73-L258) 中 `helper.GetAndValidateRequest` 按协议解析并校验请求（含 max_tokens 等计费乘数边界）。
 3. **RelayInfo 生成**：`relaycommon.GenRelayInfo` 整合令牌、用户、分组、模型映射等信息，形成贯穿全程的上下文对象。
 4. **敏感词 + 计费估算**：`service.CheckSensitiveText` 检查提示词；`service.EstimateRequestToken` 估算 token；`helper.ModelPriceHelper` 计算价格（含分组比率、模型比率、OtherRatios）。
 5. **预扣费**：`service.PreConsumeBilling` 原子扣除配额，返回 `relayInfo.Billing`（`BillingSettler`）。
@@ -96,7 +97,7 @@ new-api/
 8. **结算**：handler 内 `Billing.Settle`（`service.SettleBilling`）按实际用量结算差额（补扣/返还），并写日志 `model.RecordConsumeLog`。
 9. **失败重试**：渠道错误时自动换渠道重试（`RetryTimes` 次），必要时自动禁用（ban）故障渠道。
 
-任务类请求（`/v1/video/*`、`/mj/submit/*` 等）走另一条链：提交 → 建 Task 记录并预扣费 → 后台 `service.StartSystemTaskRunner` 周期轮询上游 → 终态时按 `AdjustBillingOnComplete` 结算差额。
+任务类请求（`POST /v1/video/generations`、`GET /v1/video/generations/:task_id`、`POST /v1/videos/:video_id/remix`、`POST /v1/tasks/:key`、`/mj/submit/*` 等）走另一条链：提交 → 建 Task 记录并预扣费 → 后台 `service.StartSystemTaskRunner` 周期轮询上游 → 终态时按 `AdjustBillingOnComplete` 结算差额。控制台的 **Workbench**（`/pg/images/*`、`/pg/video/generations`）复用同一条链，区别是用会话鉴权 + `WorkbenchGroup` 取代令牌鉴权。
 
 ## 6. 多实例拓扑
 
@@ -104,4 +105,4 @@ new-api/
 - 渠道缓存、定价缓存由各节点自行同步（`model.SyncChannelCache`、`model.SyncOptions`）。
 - Casbin 授权策略通过 `authz.StartPolicySync` 周期重载，保证多节点权限一致。
 - 系统定时任务（渠道测试、上游模型刷新、异步任务轮询）通过数据库租约（`model.SystemTask`）实现多 master 去重。
-- 前端静态资源仅主节点提供；从节点可设 `FRONTEND_BASE_URL` 把页面重定向到主节点（见 [router/main.go](../../../router/main.go#L15-L41)）。
+- 前端静态资源仅主节点提供；从节点可设 `FRONTEND_BASE_URL` 把页面重定向到主节点（见 [router/main.go](../../router/main.go#L15-L41)）。

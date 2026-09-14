@@ -161,8 +161,30 @@ const (
 	advancedCustomEndpointPathClaudeMessages         = "/v1/messages"
 	advancedCustomEndpointPathJinaRerank             = "/v1/rerank"
 	advancedCustomEndpointPathImageGeneration        = "/v1/images/generations"
+	advancedCustomEndpointPathImageEdit              = "/v1/images/edits"
 	advancedCustomEndpointPathEmbeddings             = "/v1/embeddings"
 )
+
+// 工作台（playground）中继路径。工作台与 /v1 使用同一套 OpenAI 图片协议，
+// 因此路径匹配必须把 /pg/... 视为其 /v1 对应路径，而不是直接判定不支持。
+const (
+	advancedCustomWorkbenchPathImageGeneration = "/pg/images/generations"
+	advancedCustomWorkbenchPathImageEdit       = "/pg/images/edits"
+)
+
+// canonicalIncomingPath maps a workbench relay path onto the standard OpenAI
+// path that advanced-custom routes are configured with. Every other path is
+// returned unchanged, so matching for all remaining endpoints stays identical.
+func canonicalIncomingPath(requestPath string) string {
+	switch requestPath {
+	case advancedCustomWorkbenchPathImageGeneration:
+		return advancedCustomEndpointPathImageGeneration
+	case advancedCustomWorkbenchPathImageEdit:
+		return advancedCustomEndpointPathImageEdit
+	default:
+		return requestPath
+	}
+}
 
 const (
 	// AdvancedCustomModelListPath identifies the optional OpenAI Models discovery route.
@@ -281,6 +303,8 @@ func advancedCustomEndpointTypeFromIncomingPath(incomingPath string) (types.Endp
 		return types.EndpointTypeJinaRerank, true
 	case advancedCustomEndpointPathImageGeneration:
 		return types.EndpointTypeImageGeneration, true
+	case advancedCustomEndpointPathImageEdit:
+		return types.EndpointTypeImageGeneration, true
 	case advancedCustomEndpointPathEmbeddings:
 		return types.EndpointTypeEmbeddings, true
 	default:
@@ -343,6 +367,9 @@ func matchAdvancedCustomRouteModelRule(rule string, model string) bool {
 }
 
 func matchAdvancedCustomIncomingPath(configuredPath string, requestPath string) bool {
+	// 工作台路径先归一到标准 OpenAI 路径，再与渠道登记的路由比对。归一化只发生
+	// 在匹配阶段，请求本身及其它路径消费者不受影响。
+	requestPath = canonicalIncomingPath(requestPath)
 	if matchAdvancedCustomIncomingPathTemplate(configuredPath, requestPath) {
 		return true
 	}

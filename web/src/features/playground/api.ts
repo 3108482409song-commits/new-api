@@ -17,9 +17,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
-import { requireServerSuccess } from '@/lib/server-error-message'
+import {
+  createServerError,
+  requireServerSuccess,
+} from '@/lib/server-error-message'
 
 import { API_ENDPOINTS, WORKBENCH_ENDPOINTS, WORKBENCH_GROUP_HEADER } from './constants'
+import {
+  decodeReferenceImage,
+  referenceImageFileName,
+} from './lib/reference-image'
 import type {
   ChatCompletionRequest,
   ChatCompletionResponse,
@@ -127,11 +134,33 @@ export interface WorkbenchImageGeneratePayload {
 }
 
 export interface WorkbenchImageEditPayload extends WorkbenchImageGeneratePayload {
-  image: string
+  /** Reference images, most models accept exactly one. */
+  images: string[]
 }
 
 function workbenchHeaders(group: string): Record<string, string> {
   return { [WORKBENCH_GROUP_HEADER]: group }
+}
+
+/**
+ * Validate an image relay response. On success the relay returns the upstream
+ * OpenAI payload (`{ created, data: [...] }`), which carries no `success` flag,
+ * so `requireServerSuccess` passes it through. A business failure envelope
+ * (`success: false`) throws with the payload kept as `cause`, so the shared
+ * error-message helpers can surface the backend reason. A missing or non-array
+ * `data` is a protocol error: it must never silently become an empty result,
+ * which is what made channel/group/model failures look like "no images".
+ */
+function readWorkbenchImages(response: unknown): WorkbenchImageResult[] {
+  requireServerSuccess(response)
+  const data = (response as { data?: unknown } | null | undefined)?.data
+  if (!Array.isArray(data)) {
+    throw createServerError(
+      response,
+      'The image response did not contain a data array',
+    )
+  }
+  return data as WorkbenchImageResult[]
 }
 
 /**
@@ -157,20 +186,19 @@ export async function generateWorkbenchImage(
       skipErrorHandler: true,
     } as Record<string, unknown>,
   )
-  return (res.data?.data ?? []) as WorkbenchImageResult[]
+  return readWorkbenchImages(res.data)
 }
 
-function dataUrlToFile(dataUrl: string, filename: string): File {
-  const match = dataUrl.match(/^data:([^;,]+)?(?:;base64)?,(.*)$/s)
-  if (!match) {
-    throw new Error('Invalid image data')
-  }
-  const mimeType = match[1] || 'image/png'
-  const encoded = match[2]
-  const bytes = dataUrl.includes(';base64,')
-    ? Uint8Array.from(atob(encoded), (character) => character.charCodeAt(0))
-    : new TextEncoder().encode(decodeURIComponent(encoded))
-  return new File([bytes], filename, { type: mimeType })
+function dataUrlToFile(
+  bytes: Uint8Array,
+  mimeType: string,
+  filename: string,
+): File {
+  // Copy into a plain ArrayBuffer: a Uint8Array view is not a BlobPart under
+  // TypeScript's typed-array generics.
+  const buffer = new ArrayBuffer(bytes.byteLength)
+  new Uint8Array(buffer).set(bytes)
+  return new File([buffer], filename, { type: mimeType })
 }
 
 /** Reference-image edit via the multipart images/edits endpoint. */
@@ -186,13 +214,32 @@ export async function editWorkbenchImage(
   if (payload.quality) {
     form.append('quality', payload.quality)
   }
-  form.append('image', dataUrlToFile(payload.image, 'reference.png'), 'reference.png')
+  // Validate the bytes, not just the declared MIME: a renamed or truncated file
+  // must not reach the upstream. Every image is re-checked here, so a caller that
+  // skipped the picker cannot smuggle one through either.
+  //
+  // Each image is a separate "image" part, which is the multipart form of a
+  // multi-reference edit; the relay resolves the same set when it validates and
+  // forwards them. Let the browser set the multipart Content-Type so the boundary
+  // matches the body; the File carries the MIME and a filename with the matching
+  // extension.
+  for (const image of payload.images) {
+    const reference = decodeReferenceImage(image)
+    form.append(
+      'image',
+      dataUrlToFile(
+        reference.bytes,
+        reference.mimeType,
+        referenceImageFileName(reference.mimeType),
+      ),
+    )
+  }
   const res = await api.post(WORKBENCH_ENDPOINTS.IMAGE_EDITS, form, {
     headers: workbenchHeaders(payload.group),
     signal,
     skipErrorHandler: true,
   } as Record<string, unknown>)
-  return (res.data?.data ?? []) as WorkbenchImageResult[]
+  return readWorkbenchImages(res.data)
 }
 
 export interface WorkbenchVideoGeneratePayload {
@@ -269,6 +316,13 @@ export async function generateWorkbenchVideo(
 export async function getUserWorkbenchTasks(params: {
   taskId?: string
   status?: string
+  /**
+   * Every status one filter stands for. The list groups several states under a
+   * single filter ("running" covers NOT_START/SUBMITTED/QUEUED/IN_PROGRESS),
+   * which a single-value status cannot express — and with the filtering done on
+   * the server a page is complete instead of a slice of the matching rows.
+   */
+  statuses?: string[]
   actions?: string[]
   page?: number
   pageSize?: number
@@ -277,6 +331,7 @@ export async function getUserWorkbenchTasks(params: {
     params: {
       task_id: params.taskId,
       status: params.status,
+      statuses: params.statuses?.join(','),
       actions: params.actions?.join(','),
       // The dashboard pagination reader expects `p`, not `page`.
       p: params.page,
@@ -292,4 +347,34 @@ export async function getUserWorkbenchTasks(params: {
     page: page.page,
     page_size: page.page_size,
   }
+}
+
+/**
+ * Load one generation together with its full result payload. List rows carry a
+ * preview only, so the viewer asks for the single record it is about to display
+ * rather than pulling every result on the page along with the list.
+ */
+export async function getWorkbenchTask(taskId: string): Promise<WorkbenchTask> {
+  const res = await api.get(
+    `${WORKBENCH_ENDPOINTS.TASKS}/${encodeURIComponent(taskId)}`
+  )
+  const task = requireServerSuccess(res.data).data as WorkbenchTask | undefined
+  if (!task) {
+    throw new Error('Task not found')
+  }
+  return task
+}
+
+/**
+ * Remove one finished generation record from the caller's history. Quota is not
+ * affected — the task row is only the display record. The backend refuses a task
+ * that is still running and reports another user's task as missing, so the
+ * caller only has to surface the message it returns.
+ */
+export async function deleteWorkbenchTask(taskId: string): Promise<void> {
+  const res = await api.delete(
+    `${WORKBENCH_ENDPOINTS.TASKS}/${encodeURIComponent(taskId)}`,
+    { skipErrorHandler: true } as Record<string, unknown>,
+  )
+  requireServerSuccess(res.data)
 }

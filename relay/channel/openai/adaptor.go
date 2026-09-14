@@ -537,28 +537,12 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 		}
 
 		if mf != nil && mf.File != nil {
-			// Check if "image" field exists in any form, including array notation
-			var imageFiles []*multipart.FileHeader
-			var exists bool
-
-			// First check for standard "image" field
-			if imageFiles, exists = mf.File["image"]; !exists || len(imageFiles) == 0 {
-				// If not found, check for "image[]" field
-				if imageFiles, exists = mf.File["image[]"]; !exists || len(imageFiles) == 0 {
-					// If still not found, iterate through all fields to find any that start with "image["
-					foundArrayImages := false
-					for fieldName, files := range mf.File {
-						if strings.HasPrefix(fieldName, "image[") && len(files) > 0 {
-							foundArrayImages = true
-							imageFiles = append(imageFiles, files...)
-						}
-					}
-
-					// If no image fields found at all
-					if !foundArrayImages && (len(imageFiles) == 0) {
-						return nil, errors.New("image is required")
-					}
-				}
+			// Resolve the parts through the shared helper so the field names
+			// accepted here ("image", "image[]", indexed "image[N]") are the very
+			// ones upstream validation covers.
+			imageFiles := channel.ImagePartsFromMultipart(mf)
+			if len(imageFiles) == 0 {
+				return nil, errors.New("image is required")
 			}
 
 			// Process all image files
@@ -574,8 +558,13 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 					fieldName = "image[]"
 				}
 
-				// Determine MIME type based on file extension
-				mimeType := detectImageMimeType(fileHeader.Filename)
+				// The part's Content-Type must describe the bytes being sent, so
+				// sniff them rather than trusting the caller's filename.
+				mimeType, err := detectImageMimeType(file, fileHeader.Filename)
+				if err != nil {
+					_ = file.Close()
+					return nil, fmt.Errorf("failed to read image file %d: %w", i, err)
+				}
 
 				// Create a form file with the appropriate content type
 				h := make(textproto.MIMEHeader)
@@ -596,19 +585,23 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 			}
 
 			// Handle mask file if present
-			if maskFiles, exists := mf.File["mask"]; exists && len(maskFiles) > 0 {
-				maskFile, err := maskFiles[0].Open()
+			if maskHeader := channel.MaskPartFromMultipart(mf); maskHeader != nil {
+				maskFile, err := maskHeader.Open()
 				if err != nil {
 					return nil, errors.New("failed to open mask file")
 				}
 				// 复制完立即关闭，避免在循环内使用 defer 占用资源
 
 				// Determine MIME type for mask file
-				mimeType := detectImageMimeType(maskFiles[0].Filename)
+				mimeType, err := detectImageMimeType(maskFile, maskHeader.Filename)
+				if err != nil {
+					_ = maskFile.Close()
+					return nil, errors.New("failed to read mask file")
+				}
 
 				// Create a form file with the appropriate content type
 				h := make(textproto.MIMEHeader)
-				h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="mask"; filename="%s"`, maskFiles[0].Filename))
+				h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="mask"; filename="%s"`, maskHeader.Filename))
 				h.Set("Content-Type", mimeType)
 
 				maskPart, err := writer.CreatePart(h)
@@ -642,23 +635,46 @@ func isJSONRequest(c *gin.Context) bool {
 	return strings.HasPrefix(c.Request.Header.Get("Content-Type"), "application/json")
 }
 
-// detectImageMimeType determines the MIME type based on the file extension
-func detectImageMimeType(filename string) string {
+// detectImageMimeType resolves the Content-Type to send for an image part.
+//
+// The payload is sniffed first: a filename extension is caller-supplied and can
+// label a PNG as ".jpg", and the upstream reads the part's Content-Type when it
+// chooses a decoder. The extension is only a fallback for prefixes that carry no
+// recognisable signature. The reader is rewound to the start so the caller can
+// still stream the same file into the rebuilt multipart request.
+func detectImageMimeType(file multipart.File, filename string) (string, error) {
+	head := make([]byte, channel.ImageMimeSniffBytes)
+	read, err := io.ReadFull(file, head)
+	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
+		return "", err
+	}
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		return "", err
+	}
+	if mimeType := channel.DetectImageMimeTypeFromContent(head[:read]); mimeType != "" {
+		return mimeType, nil
+	}
+	return imageMimeTypeFromExtension(filename), nil
+}
+
+// imageMimeTypeFromExtension is the fallback used when the leading bytes carry
+// no signature the standard library recognises.
+func imageMimeTypeFromExtension(filename string) string {
 	ext := strings.ToLower(filepath.Ext(filename))
 	switch ext {
 	case ".jpg", ".jpeg":
-		return "image/jpeg"
+		return channel.MimeImageJPEG
 	case ".png":
-		return "image/png"
+		return channel.MimeImagePNG
 	case ".webp":
-		return "image/webp"
+		return channel.MimeImageWebP
 	default:
 		// Try to detect from extension if possible
 		if strings.HasPrefix(ext, ".jp") {
-			return "image/jpeg"
+			return channel.MimeImageJPEG
 		}
 		// Default to png as a fallback
-		return "image/png"
+		return channel.MimeImagePNG
 	}
 }
 

@@ -216,20 +216,30 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 	}
 }
 
-func detectImageMimeType(filename string) string {
+// detectImageMimeType resolves the Content-Type for an image part.
+//
+// The multipart rebuild path that calls it is currently commented out above, so
+// this is not on a live code path; it is kept in step with the OpenAI adaptor so
+// re-enabling that block cannot reintroduce extension-only detection. A filename
+// extension is caller-supplied and can disagree with the payload it labels, so
+// the leading bytes are consulted first and the extension is only a fallback.
+func detectImageMimeType(head []byte, filename string) string {
+	if mimeType := channel.DetectImageMimeTypeFromContent(head); mimeType != "" {
+		return mimeType
+	}
 	ext := strings.ToLower(filepath.Ext(filename))
 	switch ext {
 	case ".jpg", ".jpeg":
-		return "image/jpeg"
+		return channel.MimeImageJPEG
 	case ".png":
-		return "image/png"
+		return channel.MimeImagePNG
 	case ".webp":
-		return "image/webp"
+		return channel.MimeImageWebP
 	default:
 		if strings.HasPrefix(ext, ".jp") {
-			return "image/jpeg"
+			return channel.MimeImageJPEG
 		}
-		return "image/png"
+		return channel.MimeImagePNG
 	}
 }
 

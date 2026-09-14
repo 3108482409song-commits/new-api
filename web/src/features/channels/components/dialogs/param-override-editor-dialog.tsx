@@ -1905,7 +1905,7 @@ className='h-8 w-[220px]'
                             className={cn(
                               'cursor-pointer rounded-lg border p-2.5 transition-colors',
                               isActive
-                                ? 'border-primary bg-primary/5'
+                                ? 'border-foreground/40 bg-accent'
                                 : 'hover:bg-muted/50',
                               isDragging && 'opacity-50',
                               isDropTarget &&

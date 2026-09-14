@@ -41,7 +41,7 @@ cd new-api
 docker compose up -d
 ```
 
-镜像：`ghcr.io/Calcium-Ion/new-api`（GHCR）/ `CalciumIon/new-api`（Docker Hub）；`Dockerfile` 多阶段构建无需本地 Go/Node 环境。
+镜像：`calciumion/new-api`（Docker Hub；CI 只推这一个 registry，见 [docker-build.yml](../../.github/workflows/docker-build.yml) 与 [docker-image-branch.yml](../../.github/workflows/docker-image-branch.yml) 的 `images:` 字段）。`Dockerfile` 多阶段构建无需本地 Go/Node 环境：`oven/bun` 构建前端 → `golang:1.26.1-alpine` 编译 Go（`go.mod` 声明 `go 1.25.1`）→ `debian:bookworm-slim` 运行。
 
 ## 3. 首次启动引导
 
@@ -51,7 +51,7 @@ docker compose up -d
 
 ## 4. 关键环境变量
 
-> 完整清单与默认值以 [common/init.go](../../../common/init.go)、[common/constants.go](../../../common/constants.go)、README 为准，下表为常用分类精选。
+> 完整清单与默认值以 [common/init.go](../../common/init.go)、[common/constants.go](../../common/constants.go)、README 为准，下表为常用分类精选。
 
 ### 4.1 数据库与缓存
 
@@ -89,10 +89,12 @@ docker compose up -d
 
 | 变量 | 说明 |
 | --- | --- |
-| `GLOBAL_API_RATE_LIMIT_ENABLE/NUM/DURATION` | 全局 API 限流（默认 360 次/180s） |
-| `GLOBAL_WEB_RATE_LIMIT_*` | 全局 Web 限流（默认 120 次/180s） |
-| `CRITICAL_RATE_LIMIT_*` | 关键接口（登录/注册等）限流 |
-| `SEARCH_RATE_LIMIT_*` | 搜索接口限流 |
+| `GLOBAL_API_RATE_LIMIT_ENABLE` / `GLOBAL_API_RATE_LIMIT` / `GLOBAL_API_RATE_LIMIT_DURATION` | 全局 API 限流（默认 360 次 / 180s） |
+| `GLOBAL_WEB_RATE_LIMIT_ENABLE` / `GLOBAL_WEB_RATE_LIMIT` / `GLOBAL_WEB_RATE_LIMIT_DURATION` | 全局 Web 限流（默认 120 次 / 180s） |
+| `CRITICAL_RATE_LIMIT_ENABLE` / `CRITICAL_RATE_LIMIT` / `CRITICAL_RATE_LIMIT_DURATION` | 关键接口（登录/注册等）限流（默认 20 次 / 1200s） |
+| `SEARCH_RATE_LIMIT_ENABLE` / `SEARCH_RATE_LIMIT` / `SEARCH_RATE_LIMIT_DURATION` | 搜索接口限流（默认 10 次 / 60s） |
+
+> 注意计数变量名**没有** `_NUM` 后缀（是 `GLOBAL_API_RATE_LIMIT` 而非 `…_NUM`），定义见 [common/init.go](../../common/init.go#L123-L137)。
 
 ## 5. 测试
 
@@ -127,7 +129,7 @@ go run . plugin test --fixture <path> <fixture>
 
 | 现象 | 排查 |
 | --- | --- |
-| 接口 404 | 确认路径是否在 [relay-router.go](../../../router/relay-router.go) 注册（如文件类接口明确未实现） |
+| 接口 404 | 确认路径是否在 [relay-router.go](../../router/relay-router.go) 注册（如文件类接口明确未实现） |
 | 上游报错/渠道不可用 | 日志中的 `channel error (channel #id, status code)` + 管理后台渠道测试（controller/channel-test.go） |
 | 计费异常/负扣费 | 核对 `common/quota_math.go` 饱和审计日志（quota_saturation）与请求日志 `admin_info` |
 | 多实例权限不一致 | 确认 `authz.StartPolicySync` 正常（周期重载，间隔 `SYNC_FREQUENCY`） |

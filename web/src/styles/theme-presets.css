@@ -426,7 +426,16 @@ For commercial licensing, please contact support@quantumnous.com
  *   - `anthropic`: warm cream surfaces are a brand choice, NOT a primary-mix
  *     derivation (the Anthropic system deliberately uses warm neutrals for
  *     cards/borders rather than tinting them with the clay accent).
- *   - `simple-large`: keeps intentionally neutral, high-contrast surfaces. */
+ *   - `simple-large`: keeps intentionally neutral, high-contrast surfaces.
+ *
+ * Selection surfaces are exempt from the tint for every preset. `--accent` and
+ * `--sidebar-accent` drive the "this option is chosen" affordance (menu and
+ * dropdown highlight, ghost hover, active sidebar entry). Deriving them from
+ * `--primary` means a blue preset such as `ocean-breeze` re-acquires a brand
+ * blue highlight, so the console's neutral-gray selection language would only
+ * hold on `default`. They are therefore pinned to the neutral values from
+ * `theme.css`. Cards, popovers, borders and the sidebar still take the preset
+ * tint, so preset identity is preserved. */
 [data-theme-preset]:not([data-theme-preset='default']):not(
   [data-theme-preset='anthropic']
 ):not([data-theme-preset='simple-large']) {
@@ -438,12 +447,12 @@ For commercial licensing, please contact support@quantumnous.com
     var(--foreground) 68%,
     var(--primary)
   );
-  --accent: color-mix(in oklch, var(--primary) 14%, var(--background));
+  --accent: oklch(0.95 0 0);
   --accent-foreground: var(--foreground);
   --border: color-mix(in oklch, var(--primary) 20%, var(--background));
   --input: color-mix(in oklch, var(--primary) 22%, var(--background));
   --sidebar: color-mix(in oklch, var(--primary) 4%, var(--background));
-  --sidebar-accent: color-mix(in oklch, var(--primary) 14%, var(--background));
+  --sidebar-accent: oklch(0.95 0 0);
   --sidebar-accent-foreground: var(--foreground);
   --sidebar-border: color-mix(in oklch, var(--primary) 18%, var(--background));
   --success: var(--chart-2);
@@ -463,11 +472,11 @@ For commercial licensing, please contact support@quantumnous.com
     var(--foreground) 74%,
     var(--primary)
   );
-  --accent: color-mix(in oklch, var(--primary) 18%, var(--background));
+  --accent: oklch(0.345 0 0);
   --border: color-mix(in oklch, var(--primary) 24%, var(--background));
   --input: color-mix(in oklch, var(--primary) 28%, var(--background));
   --sidebar: color-mix(in oklch, var(--primary) 5%, var(--background));
-  --sidebar-accent: color-mix(in oklch, var(--primary) 18%, var(--background));
+  --sidebar-accent: oklch(0.345 0 0);
   --sidebar-border: color-mix(in oklch, var(--primary) 22%, var(--background));
 }
 

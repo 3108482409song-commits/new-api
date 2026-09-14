@@ -415,6 +415,23 @@ func getJSONStringValue(result gjson.Result, field string) (string, error) {
 	return result.String(), nil
 }
 
+// 图片协议的入站路径：标准 /v1 与工作台 /pg 使用同一套协议，必须共用同一套
+// 模型解析与渠道分发逻辑，否则工作台请求会取不到 model。
+const (
+	pathImageGenerationsV1 = "/v1/images/generations"
+	pathImageEditsV1       = "/v1/images/edits"
+	pathImageGenerationsPG = "/pg/images/generations"
+	pathImageEditsPG       = "/pg/images/edits"
+)
+
+func isImageGenerationPath(path string) bool {
+	return strings.HasPrefix(path, pathImageGenerationsV1) || strings.HasPrefix(path, pathImageGenerationsPG)
+}
+
+func isImageEditPath(path string) bool {
+	return strings.HasPrefix(path, pathImageEditsV1) || strings.HasPrefix(path, pathImageEditsPG)
+}
+
 func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 	var modelRequest ModelRequest
 	shouldSelectChannel := true
@@ -521,14 +538,23 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 			modelRequest.Model = c.Param("model")
 		}
 	}
-	if strings.HasPrefix(c.Request.URL.Path, "/v1/images/generations") {
+	if isImageGenerationPath(c.Request.URL.Path) {
 		modelRequest.Model = common.GetStringIfEmpty(modelRequest.Model, "dall-e")
-	} else if strings.HasPrefix(c.Request.URL.Path, "/v1/images/edits") {
-		//modelRequest.Model = common.GetStringIfEmpty(c.PostForm("model"), "gpt-image-1")
+	} else if isImageEditPath(c.Request.URL.Path) {
+		// 参考图编辑有两种载体：JSON，以及浏览器上传参考图时的 multipart/form-data。
+		// multipart 不会进入上面的通用 JSON 分支（见本函数早前的 Content-Type 判定），
+		// 所以这里必须补一次解析；getModelFromRequest 已按 Content-Type 自行分派到
+		// JSON / x-www-form-urlencoded / multipart。urlencoded 已在通用分支解析过，
+		// 这里用 Model == "" 守卫避免重复解析。
 		contentType := c.ContentType()
-		if slices.Contains([]string{gin.MIMEPOSTForm, gin.MIMEMultipartPOSTForm}, contentType) {
+		if modelRequest.Model == "" && slices.Contains([]string{gin.MIMEPOSTForm, gin.MIMEMultipartPOSTForm}, contentType) {
 			req, err := getModelFromRequest(c)
-			if err == nil && req.Model != "" {
+			if err != nil {
+				// 解析失败必须显式失败：继续执行只会让用户看到「缺少 model」这类次级
+				// 错误，掩盖真正的 multipart 格式问题。
+				return nil, false, err
+			}
+			if req != nil {
 				modelRequest.Model = req.Model
 			}
 		}

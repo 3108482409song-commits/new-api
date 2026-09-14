@@ -1,11 +1,14 @@
 package middleware
 
 import (
+	"bytes"
 	"fmt"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
@@ -199,4 +202,103 @@ func TestNoAvailableChannelMessageNamesClaimingTaskPlugin(t *testing.T) {
 	generic := noAvailableChannelMessage(plain, "default", "gpt-4o")
 	assert.NotContains(t, generic, "task plugin")
 	assert.Contains(t, generic, "gpt-4o")
+}
+
+// 工作台图片链路：模型解析必须同时覆盖标准 /v1 与工作台 /pg。
+// 参考图编辑是 multipart，不会进入 getModelRequest 的通用 JSON 分支，
+// 缺少这一层解析时渠道无法选择，工作台参考图生成必然失败。
+
+func newRequestBodyContext(t *testing.T, method, target, contentType string, body []byte) *gin.Context {
+	t.Helper()
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	request := httptest.NewRequest(method, target, bytes.NewReader(body))
+	if contentType != "" {
+		request.Header.Set("Content-Type", contentType)
+	}
+	c.Request = request
+	t.Cleanup(func() { common.CleanupBodyStorage(c) })
+	return c
+}
+
+func multipartImageEditBody(t *testing.T, fields map[string]string) (string, []byte) {
+	t.Helper()
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	for key, value := range fields {
+		require.NoError(t, writer.WriteField(key, value))
+	}
+	fileWriter, err := writer.CreateFormFile("image", "reference.png")
+	require.NoError(t, err)
+	_, err = fileWriter.Write([]byte("reference-image-bytes"))
+	require.NoError(t, err)
+	require.NoError(t, writer.Close())
+	return writer.FormDataContentType(), body.Bytes()
+}
+
+func TestGetModelRequestParsesWorkbenchImageGenerationJSON(t *testing.T) {
+	c := newRequestBodyContext(t, http.MethodPost, "/pg/images/generations", "application/json",
+		[]byte(`{"model":"gpt-image-1","prompt":"a cat","n":1,"size":"1024x1024"}`))
+
+	request, shouldSelectChannel, err := getModelRequest(c)
+	require.NoError(t, err)
+	assert.True(t, shouldSelectChannel)
+	assert.Equal(t, "gpt-image-1", request.Model)
+}
+
+func TestGetModelRequestParsesWorkbenchImageEditMultipart(t *testing.T) {
+	contentType, body := multipartImageEditBody(t, map[string]string{
+		"model":  "gpt-image-1",
+		"prompt": "make it blue",
+		"n":      "1",
+		"size":   "1024x1024",
+	})
+	c := newRequestBodyContext(t, http.MethodPost, "/pg/images/edits", contentType, body)
+
+	request, shouldSelectChannel, err := getModelRequest(c)
+	require.NoError(t, err)
+	assert.True(t, shouldSelectChannel)
+	assert.Equal(t, "gpt-image-1", request.Model)
+}
+
+// 标准 /v1 的既有行为回归：multipart 编辑同样能解析模型。
+func TestGetModelRequestParsesStandardImageEditMultipart(t *testing.T) {
+	contentType, body := multipartImageEditBody(t, map[string]string{"model": "gpt-image-1"})
+	c := newRequestBodyContext(t, http.MethodPost, "/v1/images/edits", contentType, body)
+
+	request, _, err := getModelRequest(c)
+	require.NoError(t, err)
+	assert.Equal(t, "gpt-image-1", request.Model)
+}
+
+// 缺少 model 时不补默认值，交由 Distribute 的既有守卫返回明确的 400。
+func TestGetModelRequestWorkbenchImageEditWithoutModelStaysEmpty(t *testing.T) {
+	contentType, body := multipartImageEditBody(t, map[string]string{"prompt": "make it blue"})
+	c := newRequestBodyContext(t, http.MethodPost, "/pg/images/edits", contentType, body)
+
+	request, shouldSelectChannel, err := getModelRequest(c)
+	require.NoError(t, err)
+	assert.True(t, shouldSelectChannel)
+	assert.Empty(t, request.Model)
+}
+
+// multipart 无法解析时必须直接失败：继续执行只会让用户看到「缺少 model」这类
+// 次级错误，掩盖真正的 multipart 格式问题。
+func TestGetModelRequestFailsOnMalformedMultipart(t *testing.T) {
+	require.NoError(t, i18n.Init())
+	c := newRequestBodyContext(t, http.MethodPost, "/pg/images/edits",
+		"multipart/form-data; boundary=definitely-not-the-real-boundary",
+		[]byte("this is not a multipart body"))
+
+	_, _, err := getModelRequest(c)
+	require.Error(t, err)
+}
+
+// 标准 /v1 文生图缺省模型仍回填 dall-e，行为不变。
+func TestGetModelRequestStandardImageGenerationKeepsDefaultModel(t *testing.T) {
+	c := newRequestBodyContext(t, http.MethodPost, "/v1/images/generations", "application/json",
+		[]byte(`{"prompt":"a cat"}`))
+
+	request, _, err := getModelRequest(c)
+	require.NoError(t, err)
+	assert.Equal(t, "dall-e", request.Model)
 }

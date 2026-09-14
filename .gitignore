@@ -14,7 +14,13 @@ logs
 *.out.log
 *.err.log
 web/dist
+web/.dist-stale
+# 构建时临时挪走的上一版产物（见 .tools/rebuild.js）：必须被忽略，否则 Tailwind 的
+# 内容扫描会把旧产物里的类名重新编进新 CSS。
+web/dist.prev-*
+web/.dist-prev-*
 web/node_modules
+node_modules
 .env
 one-api
 new-api

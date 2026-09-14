@@ -2,7 +2,7 @@
 
 本目录是 new-api 仓库的结构化代码百科（Code Wiki），覆盖项目整体架构、主要模块职责、关键类与函数、依赖关系与运行方式。面向需要快速理解代码组织、定位功能实现或接手开发的读者。
 
-> 文档基于当前仓库代码生成。版本号见根目录 `VERSION` 文件。前端与后端目录内另有各自的 `AGENTS.md` 开发规范（`AGENTS.md`、`web/AGENTS.md`），本文档与其互补：AGENTS.md 讲"怎么写"，Code Wiki 讲"是什么、在哪、怎么跑"。
+> 文档基于当前仓库代码生成（基线提交 `37ab1c8a`）。版本号不在仓库中固定：`common.Version` 默认值为 `v0.0.0`，由 CI 用 `-ldflags "-X new-api/common.Version=$VERSION"` 注入；根目录 `VERSION` 是发布流程写入的**空白占位文件**（本地 `cat VERSION` 为空属正常），本地可用 `git describe --tags --match 'v[0-9]*'` 查看版本。前端与后端目录内另有各自的 `AGENTS.md` 开发规范（`AGENTS.md`、`web/AGENTS.md`），本文档与其互补：AGENTS.md 讲"怎么写"，Code Wiki 讲"是什么、在哪、怎么跑"。
 
 ## 文档索引
 
@@ -28,4 +28,5 @@
 - **框架**：Gin（HTTP）、GORM v2（ORM）、Casbin（授权）、Sobek（JS 插件运行时）
 - **数据库**：主库支持 SQLite / MySQL ≥5.7.8 / PostgreSQL ≥9.6；日志库额外支持 ClickHouse
 - **缓存**：Redis（可选）+ 进程内存缓存（渠道缓存、定价缓存、令牌缓存）
-- **核心业务**：聚合 60+ 上游 AI 厂商渠道，统一暴露 OpenAI/Claude/Gemini 等多协议 API，并提供计费、配额、用户/令牌管理、数据看板与任务（文生图/文生视频/音乐）轮询
+- **核心业务**：聚合 40+ 上游 AI 厂商渠道（`relay/channel/` 下 40 个 adaptor 包；`constant/channel.go` 声明 58 个渠道类型、编号至 `61`），统一暴露 OpenAI/Claude/Gemini 等多协议 API，并提供计费、配额、用户/令牌管理、数据看板与任务（文生图/文生视频/音乐）轮询
+- **Workbench**：控制台内嵌的图像/视频任务工作台（`/pg/images/*`、`/pg/video/*`），会话鉴权 + 分组头，复用插件协议链（见 [03](03-router-middleware.md) 与 [04](04-controller.md)）

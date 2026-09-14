@@ -216,3 +216,48 @@ func TestChannelSatisfiesFilters(t *testing.T) {
 	assert.False(t, ok)
 	assert.Equal(t, dto.FilterRequestPath, kind)
 }
+
+// 工作台使用 /pg/images/*，而高级自定义渠道按标准 /v1/images/* 登记路由。
+// 不做归一化时这类渠道即使支持图片协议也永远不会被选中。
+func TestChannelSatisfiesFiltersNormalizesWorkbenchImagePaths(t *testing.T) {
+	imageCustom := &Channel{Id: 3, Type: constant.ChannelTypeAdvancedCustom}
+	imageCustom.SetOtherSettings(kitdto.ChannelOtherSettings{
+		AdvancedCustom: &kitdto.AdvancedCustomConfig{
+			Routes: []kitdto.AdvancedCustomRoute{
+				{IncomingPath: "/v1/images/generations", Models: []string{"gpt-image-1"}},
+				{IncomingPath: "/v1/images/edits", Models: []string{"gpt-image-1"}},
+			},
+		},
+	})
+
+	for _, workbenchPath := range []string{"/pg/images/generations", "/pg/images/edits"} {
+		ok, kind := ChannelSatisfiesFilters(imageCustom, "gpt-image-1", []dto.ChannelFilter{{
+			Kind:        dto.FilterRequestPath,
+			RequestPath: workbenchPath,
+		}})
+		require.True(t, ok, "工作台路径 %s 必须命中按 /v1 登记的路由", workbenchPath)
+		assert.Equal(t, dto.ChannelFilterKind(""), kind)
+	}
+
+	// 归一化只对齐路径，不放宽模型规则。
+	ok, kind := ChannelSatisfiesFilters(imageCustom, "dall-e-3", []dto.ChannelFilter{{
+		Kind:        dto.FilterRequestPath,
+		RequestPath: "/pg/images/generations",
+	}})
+	assert.False(t, ok)
+	assert.Equal(t, dto.FilterRequestPath, kind)
+
+	// 其它端点的路径过滤保持严格，不被一并放宽。
+	chatCustom := &Channel{Id: 4, Type: constant.ChannelTypeAdvancedCustom}
+	chatCustom.SetOtherSettings(kitdto.ChannelOtherSettings{
+		AdvancedCustom: &kitdto.AdvancedCustomConfig{
+			Routes: []kitdto.AdvancedCustomRoute{{IncomingPath: "/v1/chat/completions"}},
+		},
+	})
+	ok, kind = ChannelSatisfiesFilters(chatCustom, "gpt-4", []dto.ChannelFilter{{
+		Kind:        dto.FilterRequestPath,
+		RequestPath: "/pg/chat/completions",
+	}})
+	assert.False(t, ok)
+	assert.Equal(t, dto.FilterRequestPath, kind)
+}

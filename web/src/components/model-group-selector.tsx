@@ -88,6 +88,7 @@ interface ModelSelectorProps {
   onModelChange: (value: string) => void
   className?: string
   disabled?: boolean
+  'aria-label'?: string
 }
 
 interface GroupSelectorProps {
@@ -96,6 +97,7 @@ interface GroupSelectorProps {
   onGroupChange: (value: string) => void
   className?: string
   disabled?: boolean
+  'aria-label'?: string
 }
 
 const ModelTriggerButton = React.forwardRef<
@@ -113,9 +115,8 @@ const ModelTriggerButton = React.forwardRef<
     size='sm'
     disabled={isDisabled}
     className={cn(
-      'flex h-8 items-center gap-2 border px-3 font-medium',
-      'justify-center p-0 sm:w-auto sm:justify-start sm:px-3',
-      'w-8',
+      'flex h-8 w-full items-center gap-2 border px-3 font-medium',
+      'justify-start',
       'bg-background text-foreground',
       'hover:bg-accent transition-colors',
       'focus:!ring-0 focus:!outline-none',
@@ -124,11 +125,11 @@ const ModelTriggerButton = React.forwardRef<
     )}
     {...props}
   >
-    <CpuIcon className='text-muted-foreground block size-4 sm:hidden' />
-    <span className='text-muted-foreground sm:text-foreground hidden truncate text-xs sm:block'>
+    <CpuIcon className='text-muted-foreground size-4 shrink-0' />
+    <span className='min-w-0 flex-1 truncate text-left text-xs'>
       {currentLabel}
     </span>
-    <ChevronsUpDown className='text-muted-foreground hidden h-4 w-4 opacity-50 sm:block' />
+    <ChevronsUpDown className='text-muted-foreground size-4 shrink-0 opacity-50' />
   </Button>
 ))
 
@@ -149,9 +150,8 @@ const GroupTriggerButton = React.forwardRef<
     size='sm'
     disabled={isDisabled}
     className={cn(
-      'flex h-8 items-center gap-2 border px-3 font-medium',
-      'justify-center p-0 sm:w-auto sm:justify-start sm:px-3',
-      'w-8',
+      'flex h-8 w-full items-center gap-2 border px-3 font-medium',
+      'justify-start',
       'bg-background text-foreground',
       'hover:bg-accent transition-colors',
       'focus:!ring-0 focus:!outline-none',
@@ -160,11 +160,11 @@ const GroupTriggerButton = React.forwardRef<
     )}
     {...props}
   >
-    <LayersIcon className='text-muted-foreground block size-4 sm:hidden' />
-    <span className='text-muted-foreground sm:text-foreground hidden truncate text-xs sm:block'>
+    <LayersIcon className='text-muted-foreground size-4 shrink-0' />
+    <span className='min-w-0 flex-1 truncate text-left text-xs'>
       {currentLabel}
     </span>
-    <ChevronsUpDown className='text-muted-foreground hidden h-4 w-4 opacity-50 sm:block' />
+    <ChevronsUpDown className='text-muted-foreground size-4 shrink-0 opacity-50' />
   </Button>
 ))
 
@@ -175,10 +175,16 @@ GroupTriggerButton.displayName = 'GroupTriggerButton'
  * Styled following Scira's form-component design patterns
  */
 export const ModelSelector: React.FC<ModelSelectorProps> = React.memo(
-  ({ selectedModel, models, onModelChange, className, disabled = false }) => {
+  ({
+    selectedModel,
+    models,
+    onModelChange,
+    className,
+    disabled = false,
+    'aria-label': ariaLabel,
+  }) => {
     const { t } = useTranslation()
     const [open, setOpen] = useState(false)
-    const [searchQuery, setSearchQuery] = useState('')
     const isMobile = useIsMobile()
 
     const currentModel = useMemo(
@@ -203,33 +209,10 @@ export const ModelSelector: React.FC<ModelSelectorProps> = React.memo(
       [models, t]
     )
 
-    // Filter models by search query
-    const filteredModels = useMemo(() => {
-      if (!searchQuery.trim()) return groupedModels
-
-      const query = searchQuery.toLowerCase()
-      const filtered: Record<string, ModelOption[]> = {}
-
-      Object.entries(groupedModels).forEach(([category, categoryModels]) => {
-        const matches = categoryModels.filter(
-          (m) =>
-            m.label.toLowerCase().includes(query) ||
-            m.value.toLowerCase().includes(query) ||
-            m.description?.toLowerCase().includes(query)
-        )
-        if (matches.length > 0) {
-          filtered[category] = matches
-        }
-      })
-
-      return filtered
-    }, [groupedModels, searchQuery])
-
     const handleModelChange = useCallback(
       (value: string) => {
         onModelChange(value)
         setOpen(false)
-        setSearchQuery('')
       },
       [onModelChange]
     )
@@ -245,24 +228,16 @@ export const ModelSelector: React.FC<ModelSelectorProps> = React.memo(
         filter={() => 1}
         shouldFilter={false}
       >
-        {!isMobile && (
-          <CommandInput
-            placeholder={t('Search models...')}
-            className='h-9'
-            value={searchQuery}
-            onValueChange={setSearchQuery}
-          />
-        )}
         <CommandEmpty>{t('No model found.')}</CommandEmpty>
         <CommandList
           className={isMobile ? '!max-h-full flex-1 p-2' : 'max-h-[300px]'}
         >
-          {Object.keys(filteredModels).length === 0 ? (
+          {Object.keys(groupedModels).length === 0 ? (
             <div className='text-muted-foreground px-3 py-6 text-xs'>
               {t('No model found.')}
             </div>
           ) : (
-            Object.entries(filteredModels).map(
+            Object.entries(groupedModels).map(
               ([category, categoryModels], categoryIndex) => (
                 <CommandGroup key={category}>
                   {categoryIndex > 0 && (
@@ -324,6 +299,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = React.memo(
             triggerClassName={className}
             isDisabled={disabled}
             aria-expanded={open}
+            aria-label={ariaLabel}
           />
         </DrawerTrigger>
         <DrawerContent className='flex max-h-[80vh] min-h-[60vh] flex-col'>
@@ -346,6 +322,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = React.memo(
               triggerClassName={className}
               isDisabled={disabled}
               aria-expanded={open}
+              aria-label={ariaLabel}
             />
           }
         />
@@ -370,7 +347,14 @@ ModelSelector.displayName = 'ModelSelector'
  * Styled following Scira's form-component design patterns
  */
 export const GroupSelector: React.FC<GroupSelectorProps> = React.memo(
-  ({ selectedGroup, groups, onGroupChange, className, disabled = false }) => {
+  ({
+    selectedGroup,
+    groups,
+    onGroupChange,
+    className,
+    disabled = false,
+    'aria-label': ariaLabel,
+  }) => {
     const { t } = useTranslation()
     const [open, setOpen] = useState(false)
     const isMobile = useIsMobile()
@@ -396,23 +380,7 @@ export const GroupSelector: React.FC<GroupSelectorProps> = React.memo(
             ? 'h-full flex-1 rounded-lg border-0 bg-transparent'
             : 'rounded-lg'
         )}
-        filter={(value, search) => {
-          const group = groups.find((g) => g.value === value)
-          if (!group || !search) return 1
-
-          const searchTerm = search.toLowerCase()
-          const searchableFields = [
-            group.label,
-            group.description || '',
-            group.value,
-          ]
-            .join(' ')
-            .toLowerCase()
-
-          return searchableFields.includes(searchTerm) ? 1 : 0
-        }}
       >
-        <CommandInput placeholder={t('Search groups...')} className='h-9' />
         <CommandEmpty>{t('No group found.')}</CommandEmpty>
         <CommandList
           className={isMobile ? '!max-h-full flex-1 p-2' : 'max-h-[240px]'}
@@ -472,6 +440,7 @@ export const GroupSelector: React.FC<GroupSelectorProps> = React.memo(
             triggerClassName={className}
             isDisabled={disabled}
             aria-expanded={open}
+            aria-label={ariaLabel}
           />
         </DrawerTrigger>
         <DrawerContent className='max-h-[80vh]'>
@@ -536,6 +505,7 @@ export const GroupSelector: React.FC<GroupSelectorProps> = React.memo(
               triggerClassName={className}
               isDisabled={disabled}
               aria-expanded={open}
+              aria-label={ariaLabel}
             />
           }
         />
@@ -708,7 +678,7 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
               className={cn(
                 'flex min-w-0 items-center justify-between gap-2 rounded-md px-2.5 py-2 text-left text-[12px] leading-4 transition-colors',
                 isSelected
-                  ? 'bg-primary/10 text-foreground'
+                  ? 'bg-accent text-foreground'
                   : 'text-muted-foreground hover:bg-accent hover:text-foreground'
               )}
               disabled={disabled}

@@ -135,9 +135,9 @@ function DataTableFacetedFilterInner<TData, TValue>({
                   >
                     <div
                       className={cn(
-                        'border-primary flex size-4 items-center justify-center rounded-sm border',
+                        'border-input flex size-4 items-center justify-center rounded-sm border',
                         isSelected
-                          ? 'bg-primary text-primary-foreground'
+                          ? 'border-foreground bg-foreground text-background'
                           : 'opacity-50 [&_svg]:invisible'
                       )}
                     >

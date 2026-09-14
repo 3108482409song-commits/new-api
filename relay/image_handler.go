@@ -2,6 +2,7 @@ package relay
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -10,6 +11,8 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/relay/channel"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -19,6 +22,15 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+// isUnimplementedAdaptorError reports whether an adaptor declined the conversion
+// because the capability is still a generated stub. Stubs return the
+// channel.ErrNotImplemented sentinel, so this is a sentinel check rather than a
+// message match: an unrelated error that merely mentions the same phrase can no
+// longer be misclassified, and rewording the stub message stays safe.
+func isUnimplementedAdaptorError(err error) bool {
+	return errors.Is(err, channel.ErrNotImplemented)
+}
 
 func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
 	info.InitChannelMeta(c)
@@ -55,6 +67,15 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 	} else {
 		convertedRequest, err := adaptor.ConvertImageRequest(c, info, *request)
 		if err != nil {
+			if info.RelayMode == relayconstant.RelayModeImagesEdits && isUnimplementedAdaptorError(err) {
+				// 渠道没有实现图片编辑：桩实现只返回 "not implemented"，用户无法
+				// 判断是渠道不支持还是请求有误。这里替换为可操作的原因，并保留
+				// 重试语义（不带 ErrOptionWithSkipRetry），换渠道仍可能成功。
+				return types.NewError(
+					fmt.Errorf("this channel does not support image editing; choose a channel that implements images/edits: %w", err),
+					types.ErrorCodeConvertRequestFailed,
+				)
+			}
 			return types.NewError(err, types.ErrorCodeConvertRequestFailed)
 		}
 		relaycommon.AppendRequestConversionFromRequest(info, convertedRequest)

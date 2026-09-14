@@ -12,7 +12,13 @@ var (
 	ImageGenerationModels = []string{
 		"dall-e-3",
 		"dall-e-2",
-		"gpt-image-1",
+		// Match the family, not one version. The literal "gpt-image-1" does not
+		// occur in "gpt-image-1.5" or "gpt-image-2", so a channel offering a
+		// newer — or a reseller-renamed — member of the family was never
+		// recognised as an image channel, and the image workbench hid its models
+		// with no error shown anywhere. Substring also covers vendor-prefixed
+		// names such as "openai/gpt-image-2".
+		"gpt-image",
 		"prefix:imagen-",
 		"flux-",
 		"flux.1-",

@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ReactElement } from 'react'
 import { afterEach, expect, it, vi } from 'vitest'
 
@@ -26,20 +27,41 @@ import { api } from '@/lib/api'
 import { ImagePanel } from '../image-panel'
 import { VideoPanel } from '../video-panel'
 
+type MockModel = {
+  name: string
+  image: boolean
+  video: boolean
+  platform?: string
+}
+
 // The image and video panels read the same `['workbench-models', group]` query
 // entry. These tests pin the contract that makes sharing it safe: the entry
-// caches the raw capability list and each panel narrows it locally. When the
-// entry cached a panel-shaped list instead, the other panel's filter matched
-// nothing and its model picker rendered empty.
+// caches the raw list and each panel narrows it locally. When the entry cached a
+// panel-shaped list instead, the other panel's filter matched nothing and its
+// model picker rendered empty.
+//
+// The two panels narrow differently on purpose. The video panel keeps only
+// models the task-plugin registry declares, which is authoritative. The image
+// panel narrows nothing: which models can generate images is decided by how the
+// operator curates the group, so every model of the group is offered.
 const IMAGE_MODEL = 'gpt-image-1'
 const VIDEO_MODEL = 'kling-v1'
+const TEXT_MODEL = 'gpt-4o'
 
-const MODELS = [
+const MODELS: MockModel[] = [
   { name: IMAGE_MODEL, image: true, video: false },
   { name: VIDEO_MODEL, image: false, video: true, platform: 'kling' },
+  { name: TEXT_MODEL, image: false, video: false },
 ]
 
-function mockWorkbenchApi() {
+// The exact payload the backend used to send for a channel serving
+// "gpt-image-2": a genuine image model, flagged image:false because the name
+// pattern only knew "gpt-image-1" as a substring.
+const MISFLAGGED_IMAGE_MODEL: MockModel[] = [
+  { name: 'gpt-image-2', image: false, video: false },
+]
+
+function mockWorkbenchApi(models: MockModel[] = MODELS) {
   vi.spyOn(api, 'get').mockImplementation((url) => {
     if (url === '/api/user/self/groups') {
       return Promise.resolve({
@@ -47,7 +69,7 @@ function mockWorkbenchApi() {
       })
     }
     if (url === '/api/workbench/models') {
-      return Promise.resolve({ data: { success: true, data: MODELS } })
+      return Promise.resolve({ data: { success: true, data: models } })
     }
     if (url === '/api/task/self') {
       return Promise.resolve({ data: { success: true, data: { items: [], total: 0 } } })
@@ -126,4 +148,45 @@ it('serves both panels from one cached capability request', async () => {
     .mocked(api.get)
     .mock.calls.filter(([url]) => url === '/api/workbench/models')
   expect(modelRequests).toHaveLength(1)
+})
+
+// The image panel is group-driven, not capability-driven: the operator marks a
+// group as the image group by putting the right models in it. So every model the
+// group exposes must be selectable, whatever the capability flag says.
+it('offers every model of the group in the image panel', async () => {
+  mockWorkbenchApi()
+  const user = userEvent.setup()
+
+  renderPanel(newClient(), <ImagePanel active />)
+  await expectSelectorToOffer(IMAGE_MODEL)
+
+  await user.click(screen.getByRole('combobox', { name: 'Model' }))
+  expect(await screen.findAllByText(TEXT_MODEL)).not.toHaveLength(0)
+})
+
+// The regression that motivated dropping the filter: the backend reported
+// "gpt-image-2" with image:false, the panel filtered it away, and the picker
+// rendered empty with nothing shown to explain why.
+it('offers an image model the old name pattern mis-flagged', async () => {
+  mockWorkbenchApi(MISFLAGGED_IMAGE_MODEL)
+
+  renderPanel(newClient(), <ImagePanel active />)
+
+  await expectSelectorToOffer('gpt-image-2')
+})
+
+// The video panel is the opposite: its capability comes from the task-plugin
+// registry, so widening the image panel must not widen this one.
+it('keeps the video panel limited to registry-declared models', async () => {
+  mockWorkbenchApi()
+
+  renderPanel(newClient(), <VideoPanel active />)
+
+  // kling-v1 is the only registry-declared video model in this payload, so it is
+  // the one auto-selected. Dropping the video filter would pick the first model
+  // of the group instead, which is the image model.
+  await expectSelectorToOffer(VIDEO_MODEL)
+  expect(selectorLabels()).not.toContainEqual(
+    expect.stringContaining(IMAGE_MODEL)
+  )
 })

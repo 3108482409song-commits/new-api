@@ -16,6 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { getServerErrorMessage } from '@/lib/server-error-message'
+
 import {
   WORKBENCH_ACTION_WHITELIST,
   WORKBENCH_IMAGE_ACTIONS,
@@ -49,12 +51,14 @@ export function isVideoStatusTerminal(status: TaskStatus): boolean {
   return status === 'SUCCESS' || status === 'FAILURE'
 }
 
+/**
+ * Resolve the message shown for a failed generation. Delegates to the shared
+ * server-error resolver so every envelope shape the API uses is understood:
+ * a relay error body ({ error: { message } }), a business failure envelope
+ * ({ success: false, message }), and any of those wrapped via `cause`.
+ */
 export function workbenchErrorMessage(error: unknown, fallback: string): string {
-  const candidate = error as {
-    response?: { data?: { error?: { message?: string } } }
-    message?: string
-  }
-  return candidate?.response?.data?.error?.message ?? candidate?.message ?? fallback
+  return getServerErrorMessage(error, fallback)
 }
 
 export function formatQuota(quota: number): string {
